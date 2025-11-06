@@ -5,8 +5,6 @@ using System;
 using System.Diagnostics;
 using System.Threading;
 
-namespace TeamsRemoteSTT.App.Services;
-
 /// <summary>
 /// Provides buffered IWaveProvider from a specific render endpoint using WASAPI loopback.
 /// Also exposes diagnostics for captured throughput and buffer depth.

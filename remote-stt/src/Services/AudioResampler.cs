@@ -1,10 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NAudio.Wave;
-using TeamsRemoteSTT.App.Settings;
 using NAudio.Wave.SampleProviders;
-
-namespace TeamsRemoteSTT.App.Services;
 
 /// <summary>
 /// Converts arbitrary render format to PCM16 mono @ target sample rate.

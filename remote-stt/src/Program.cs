@@ -4,8 +4,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using NAudio.Wave;
 using Serilog;
-using TeamsRemoteSTT.App.Services;
-using TeamsRemoteSTT.App.Settings;
+
 
 var builder = Host.CreateApplicationBuilder(args);
 

@@ -2,9 +2,6 @@ using Microsoft.Extensions.Logging;
 using NAudio.CoreAudioApi;
 using NAudio.Wave;
 using System.Diagnostics;
-using System.Threading;
-
-namespace TeamsRemoteSTT.App.Services;
 
 /// <summary>
 /// Provides buffered IWaveProvider from a specific capture endpoint (microphone) using WASAPI.

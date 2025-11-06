@@ -1,4 +1,3 @@
-namespace TeamsRemoteSTT.App.Settings;
 
 public sealed class AudioOptions
 {

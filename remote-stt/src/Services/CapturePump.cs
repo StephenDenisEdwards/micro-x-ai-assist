@@ -4,9 +4,6 @@ using Microsoft.Extensions.DependencyInjection;
 using NAudio.CoreAudioApi;
 using NAudio.Wave;
 using System.Diagnostics;
-using TeamsRemoteSTT.App.Settings;
-
-namespace TeamsRemoteSTT.App.Services;
 
 public sealed class CapturePump : BackgroundService
 {

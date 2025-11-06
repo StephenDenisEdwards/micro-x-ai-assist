@@ -3,9 +3,6 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.DependencyInjection;
 using NAudio.CoreAudioApi;
 using NAudio.Wave;
-using TeamsRemoteSTT.App.Settings;
-
-namespace TeamsRemoteSTT.App.Services;
 
 public sealed class MicCapturePump : BackgroundService
 {

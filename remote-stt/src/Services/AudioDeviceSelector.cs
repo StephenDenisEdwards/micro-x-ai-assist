@@ -1,9 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NAudio.CoreAudioApi;
-using TeamsRemoteSTT.App.Settings;
 
-namespace TeamsRemoteSTT.App.Services;
 
 public sealed class AudioDeviceSelector
 {

@@ -1,5 +1,3 @@
-namespace TeamsRemoteSTT.App.Settings;
-
 public sealed class SpeechOptions
 {
     public string Region { get; set; } = "westeurope";

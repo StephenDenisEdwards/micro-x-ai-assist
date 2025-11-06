@@ -4,9 +4,6 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System.Diagnostics;
 using System.Threading;
-using TeamsRemoteSTT.App.Settings;
-
-namespace TeamsRemoteSTT.App.Services;
 
 public sealed class SpeechPushClient : IAsyncDisposable
 {
