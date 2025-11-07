@@ -1,12 +1,13 @@
+using AiAssistLibrary.Services;
+using AiAssistLibrary.Settings;
+using AudioCapture.Services;
+using AudioCapture.Settings;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Serilog;
-using AiAssistLibrary.Settings;
-using AiAssistLibrary.Services;
-using AudioCapture.Settings;
-using AudioCapture.Services;
 
 var builder = Host.CreateApplicationBuilder(args);
 
@@ -15,10 +16,10 @@ builder.Configuration.AddUserSecrets<Program>();
 
 // Serilog
 Log.Logger = new LoggerConfiguration()
- .ReadFrom.Configuration(builder.Configuration)
- .Enrich.FromLogContext()
- .WriteTo.Console()
- .CreateLogger();
+	.ReadFrom.Configuration(builder.Configuration)
+	.Enrich.FromLogContext()
+	.WriteTo.Console()
+	.CreateLogger();
 builder.Logging.ClearProviders();
 builder.Logging.AddSerilog();
 
@@ -43,10 +44,10 @@ var app = builder.Build();
 var logger = app.Services.GetRequiredService<ILogger<Program>>();
 
 // Validate speech key from configuration (User Secrets) with env var fallback
-var speechOpts = app.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<SpeechOptions>>().Value;
+var speechOpts = app.Services.GetRequiredService<IOptions<SpeechOptions>>().Value;
 var speechKey = string.IsNullOrWhiteSpace(speechOpts.Key)
- ? Environment.GetEnvironmentVariable("AZURE_SPEECH_KEY")
- : speechOpts.Key;
+	? Environment.GetEnvironmentVariable("AZURE_SPEECH_KEY")
+	: speechOpts.Key;
 
 if (string.IsNullOrWhiteSpace(speechKey))
 {
@@ -55,12 +56,9 @@ if (string.IsNullOrWhiteSpace(speechKey))
 	return;
 }
 
-var audioOpts = app.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<AudioOptions>>().Value;
+var audioOpts = app.Services.GetRequiredService<IOptions<AudioOptions>>().Value;
 if (audioOpts.EnableHeadphoneReminder)
-{
 	logger.LogInformation(
 		"Tip: Use headphones and route Teams 'Speakers' to the selected device to avoid local voice bleed.");
-}
 
 await app.RunAsync();
-
