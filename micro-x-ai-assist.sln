@@ -4,6 +4,8 @@ VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "remote-stt", "remote-stt\remote-stt.csproj", "{7E1E6790-FFB0-AE25-0ECA-C6291E441B7D}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ai-assist-library", "ai-assist-library\ai-assist-library.csproj", "{BA02376D-0523-12E7-5309-FFE6E504926F}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -14,6 +16,10 @@ Global
 		{7E1E6790-FFB0-AE25-0ECA-C6291E441B7D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{7E1E6790-FFB0-AE25-0ECA-C6291E441B7D}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{7E1E6790-FFB0-AE25-0ECA-C6291E441B7D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BA02376D-0523-12E7-5309-FFE6E504926F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BA02376D-0523-12E7-5309-FFE6E504926F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BA02376D-0523-12E7-5309-FFE6E504926F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BA02376D-0523-12E7-5309-FFE6E504926F}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

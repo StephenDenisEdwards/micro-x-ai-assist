@@ -1,23 +1,27 @@
+using AiAssistLibrary.Settings;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.DependencyInjection;
 using NAudio.CoreAudioApi;
 using NAudio.Wave;
+using System.Diagnostics;
 
-public sealed class MicCapturePump : BackgroundService
+namespace AiAssistLibrary.Services;
+
+public sealed class CapturePump : BackgroundService
 {
-	private readonly ILogger<MicCapturePump> _log;
+	private readonly ILogger<CapturePump> _log;
 	private readonly AudioDeviceSelector _selector;
-	private readonly MicrophoneSource _source;
+	private readonly LoopbackSource _source;
 	private readonly IServiceProvider _services;
 	private readonly AudioOptions _opts;
 
-	public MicCapturePump(
-		ILogger<MicCapturePump> log,
-		AudioDeviceSelector selector,
-		MicrophoneSource source,
-		Microsoft.Extensions.Options.IOptions<AudioOptions> opts,
-		IServiceProvider services)
+	public CapturePump(
+	ILogger<CapturePump> log,
+	AudioDeviceSelector selector,
+	LoopbackSource source,
+	Microsoft.Extensions.Options.IOptions<AudioOptions> opts,
+	IServiceProvider services)
 	{
 		_log = log;
 		_selector = selector;
@@ -31,22 +35,19 @@ public sealed class MicCapturePump : BackgroundService
 		MMDevice device;
 		try
 		{
-			device = _selector.SelectCaptureDevice();
+			device = _selector.SelectRenderDevice();
 		}
 		catch (Exception ex)
 		{
-			_log.LogError(ex, "Failed to select capture device.");
+			_log.LogError(ex, "Failed to select render device.");
 			return;
 		}
 
-		var wave = _source.Start(device);
-
-		// Create transient resampler and speech push client so they are independent from loopback pipeline
+		IWaveProvider loop = _source.Start(device);
 		using var scope = _services.CreateScope();
 		var resampler = scope.ServiceProvider.GetRequiredService<AudioResampler>();
-		var speech = scope.ServiceProvider.GetRequiredService<SpeechPushClient>().SetChannelTag("MIC");
-
-		var chain = resampler.BuildChain(wave);
+		var speech = scope.ServiceProvider.GetRequiredService<SpeechPushClient>().SetChannelTag("AUDIO");
+		var chain = resampler.BuildChain(loop);
 		var target = resampler.TargetFormat;
 		var bytesPerMs = target.AverageBytesPerSecond / 1000;
 		var requested = bytesPerMs * _opts.ChunkMilliseconds;
@@ -54,13 +55,15 @@ public sealed class MicCapturePump : BackgroundService
 		var chunkBytes = Math.Max(requested, minimum);
 		chunkBytes -= chunkBytes % target.BlockAlign;
 		var buffer = new byte[chunkBytes];
-
 		await speech.StartAsync(stoppingToken);
+		var meter = Stopwatch.StartNew();
+		long resamplerBytesThisSec = 0;
+		int zeroReadsThisSec = 0;
+		int consecutiveZeroReads = 0;
+		bool hypothesisLogged = false;
 
 		try
 		{
-			var meter = System.Diagnostics.Stopwatch.StartNew();
-			long resamplerBytesThisSec = 0;
 			while (!stoppingToken.IsCancellationRequested)
 			{
 				int read = resampler.Read(buffer, 0, buffer.Length);
@@ -68,17 +71,32 @@ public sealed class MicCapturePump : BackgroundService
 				{
 					speech.Write(new ReadOnlySpan<byte>(buffer, 0, read));
 					resamplerBytesThisSec += read;
+					zeroReadsThisSec = 0;
+					consecutiveZeroReads = 0;
 				}
 				else
 				{
+					zeroReadsThisSec++;
+					consecutiveZeroReads++;
+					int buffered = _source.BufferedBytes;
+					if (!hypothesisLogged && buffered > 0 && consecutiveZeroReads >= 10)
+					{
+						_log.LogWarning(
+							"Hypothesis: resampler returning zeros while loopback has data (Buffered={Buffered} B, ZeroReads={ZeroReads}).",
+							buffered, consecutiveZeroReads);
+						hypothesisLogged = true;
+					}
+
 					await Task.Delay(5, stoppingToken);
 				}
 
 				if (meter.ElapsedMilliseconds >= 1000)
 				{
-					_log.LogDebug("Mic Resampler: read {Bps} B/s, buffered {Buffered} B", resamplerBytesThisSec,
-						_source.BufferedBytes);
+					_log.LogDebug(
+						"Resampler: read {Bps} B/s, zeroReads {ZeroReads}, consecutiveZeroReads {Consecutive}, loopbackBuffered {Buffered} B",
+						resamplerBytesThisSec, zeroReadsThisSec, consecutiveZeroReads, _source.BufferedBytes);
 					resamplerBytesThisSec = 0;
+					zeroReadsThisSec = 0;
 					meter.Restart();
 				}
 			}
@@ -88,14 +106,14 @@ public sealed class MicCapturePump : BackgroundService
 		}
 		catch (Exception ex)
 		{
-			_log.LogError(ex, "Mic capture pump error.");
+			_log.LogError(ex, "Capture pump error.");
 		}
 		finally
 		{
 			_source.Stop();
 			await speech.DisposeAsync();
 			resampler.Dispose();
-			_log.LogInformation("Mic capture pump stopped.");
+			_log.LogInformation("Capture pump stopped.");
 		}
 	}
 }
