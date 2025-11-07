@@ -1,3 +1,4 @@
+using AudioCapture.Settings;
 using AiAssistLibrary.Settings;
 using Microsoft.CognitiveServices.Speech;
 using Microsoft.CognitiveServices.Speech.Audio;
@@ -31,7 +32,7 @@ public sealed class SpeechPushClient : IAsyncDisposable
  if (string.IsNullOrWhiteSpace(key)) throw new InvalidOperationException("Speech key not configured. Set 'Speech:Key' in user secrets or AZURE_SPEECH_KEY env var.");
  if (string.IsNullOrWhiteSpace(_opts.Region)) throw new InvalidOperationException("Speech region not configured. Set 'Speech:Region' in configuration.");
  if (string.IsNullOrWhiteSpace(_opts.Language)) throw new InvalidOperationException("Speech recognition language not configured. Set 'Speech:Language' in configuration (e.g., 'en-US').");
- if (a.TargetChannels !=1 || a.TargetBitsPerSample !=16) throw new InvalidOperationException("AudioOptions must produce16-bit mono PCM for Azure Speech push-stream (TargetChannels=1, TargetBitsPerSample=16).");
+ if (a.TargetChannels !=1 || a.TargetBitsPerSample !=16) throw new InvalidOperationException("AudioOptions must produce 16-bit mono PCM for Azure Speech push-stream (TargetChannels=1, TargetBitsPerSample=16).");
  var speechConfig = SpeechConfig.FromSubscription(key, _opts.Region);
  speechConfig.SpeechRecognitionLanguage = _opts.Language;
  var streamFormat = AudioStreamFormat.GetWaveFormatPCM((uint)a.TargetSampleRate, (byte)a.TargetBitsPerSample, (byte)a.TargetChannels);

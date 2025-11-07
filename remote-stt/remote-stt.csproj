@@ -34,5 +34,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\ai-assist-library\ai-assist-library.csproj" />
+    <ProjectReference Include="..\audio-capture\audio-capture.csproj" />
   </ItemGroup>
 </Project>

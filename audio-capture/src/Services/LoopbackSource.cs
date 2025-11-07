@@ -4,7 +4,7 @@ using NAudio.Wave;
 using System.Diagnostics;
 using System.Threading;
 
-namespace AiAssistLibrary.Services;
+namespace AudioCapture.Services;
 
 public sealed class LoopbackSource : IDisposable
 {

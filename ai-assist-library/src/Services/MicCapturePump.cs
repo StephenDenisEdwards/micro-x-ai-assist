@@ -1,9 +1,8 @@
-using AiAssistLibrary.Settings;
+using AudioCapture.Settings;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.DependencyInjection;
-using NAudio.CoreAudioApi;
-using NAudio.Wave;
+using AudioCapture.Services;
 
 namespace AiAssistLibrary.Services;
 
@@ -31,9 +30,9 @@ public sealed class MicCapturePump : BackgroundService
 
  protected override async Task ExecuteAsync(CancellationToken stoppingToken)
  {
- MMDevice device;
- try{ device = _selector.SelectCaptureDevice(); }
- catch (Exception ex){ _log.LogError(ex, "Failed to select capture device."); return; }
+ try
+ {
+ var device = _selector.SelectCaptureDevice();
  var wave = _source.Start(device);
  using var scope = _services.CreateScope();
  var resampler = scope.ServiceProvider.GetRequiredService<AudioResampler>();
@@ -76,6 +75,11 @@ public sealed class MicCapturePump : BackgroundService
  await speech.DisposeAsync();
  resampler.Dispose();
  _log.LogInformation("Mic capture pump stopped.");
+ }
+ }
+ catch (Exception ex)
+ {
+ _log.LogError(ex, "Failed to select capture device.");
  }
  }
 }

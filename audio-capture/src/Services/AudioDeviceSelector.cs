@@ -1,9 +1,9 @@
-using AiAssistLibrary.Settings;
+using AudioCapture.Settings;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NAudio.CoreAudioApi;
 
-namespace AiAssistLibrary.Services;
+namespace AudioCapture.Services;
 
 public sealed class AudioDeviceSelector
 {

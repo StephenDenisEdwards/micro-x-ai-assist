@@ -1,10 +1,10 @@
-using AiAssistLibrary.Settings;
+using AudioCapture.Settings;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NAudio.Wave;
 using NAudio.Wave.SampleProviders;
 
-namespace AiAssistLibrary.Services;
+namespace AudioCapture.Services;
 
 public sealed class AudioResampler : IDisposable
 {

@@ -1,4 +1,4 @@
-namespace AiAssistLibrary.Settings;
+namespace AudioCapture.Settings;
 
 public sealed class AudioOptions
 {

@@ -5,6 +5,8 @@ using Microsoft.Extensions.Logging;
 using Serilog;
 using AiAssistLibrary.Settings;
 using AiAssistLibrary.Services;
+using AudioCapture.Settings;
+using AudioCapture.Services;
 
 var builder = Host.CreateApplicationBuilder(args);
 
@@ -24,7 +26,7 @@ builder.Logging.AddSerilog();
 builder.Services.Configure<AudioOptions>(builder.Configuration.GetSection("Audio"));
 builder.Services.Configure<SpeechOptions>(builder.Configuration.GetSection("Speech"));
 
-// Services
+// Audio capture services
 builder.Services.AddSingleton<AudioDeviceSelector>();
 builder.Services.AddSingleton<LoopbackSource>();
 builder.Services.AddSingleton<MicrophoneSource>();
