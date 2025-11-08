@@ -1,10 +1,10 @@
-using System.Diagnostics;
 using AudioCapture.Services;
 using AudioCapture.Settings;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using System.Diagnostics; // added for Stopwatch
 
 namespace AiAssistLibrary.Services;
 
@@ -39,11 +39,14 @@ public sealed class MicCapturePump : BackgroundService
 			using var scope = _services.CreateScope();
 			var resampler = scope.ServiceProvider.GetRequiredService<AudioResampler>();
 			var speech = scope.ServiceProvider.GetRequiredService<SpeechPushClient>().SetChannelTag("MIC");
+
+			// Build processing chain and use returned provider for reads & format (mirrors CapturePump)
 			var chain = resampler.BuildChain(wave);
-			var target = resampler.TargetFormat;
-			var bytesPerMs = target.AverageBytesPerSecond / 1000;
+			var target = chain.WaveFormat;
+
+			var bytesPerMs = target.AverageBytesPerSecond /1000;
 			var requested = bytesPerMs * _opts.ChunkMilliseconds;
-			var minimum = Math.Max(target.AverageBytesPerSecond / 100, target.BlockAlign);
+			var minimum = Math.Max(target.AverageBytesPerSecond /100, target.BlockAlign);
 			var chunkBytes = Math.Max(requested, minimum);
 			chunkBytes -= chunkBytes % target.BlockAlign;
 			var buffer = new byte[chunkBytes];
@@ -51,13 +54,13 @@ public sealed class MicCapturePump : BackgroundService
 			try
 			{
 				var meter = Stopwatch.StartNew();
-				long resamplerBytesThisSec = 0;
+				long resamplerBytesThisSec =0;
 				while (!stoppingToken.IsCancellationRequested)
 				{
-					var read = resampler.Read(buffer, 0, buffer.Length);
-					if (read > 0)
+					var read = chain.Read(buffer,0, buffer.Length); // changed from resampler.Read
+					if (read >0)
 					{
-						speech.Write(new ReadOnlySpan<byte>(buffer, 0, read));
+						speech.Write(new ReadOnlySpan<byte>(buffer,0, read));
 						resamplerBytesThisSec += read;
 					}
 					else
@@ -65,11 +68,11 @@ public sealed class MicCapturePump : BackgroundService
 						await Task.Delay(5, stoppingToken);
 					}
 
-					if (meter.ElapsedMilliseconds >= 1000)
+					if (meter.ElapsedMilliseconds >=1000)
 					{
 						_log.LogDebug("Mic Resampler: read {Bps} B/s, buffered {Buffered} B", resamplerBytesThisSec,
 							_source.BufferedBytes);
-						resamplerBytesThisSec = 0;
+						resamplerBytesThisSec =0;
 						meter.Restart();
 					}
 				}
