@@ -1,7 +1,7 @@
-using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using NAudio.CoreAudioApi;
 using NAudio.Wave;
+using System.Diagnostics;
 
 namespace AudioCapture.Services;
 

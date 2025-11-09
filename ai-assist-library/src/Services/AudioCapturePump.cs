@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using AudioCapture.Services;
 using AudioCapture.Settings;
 using Microsoft.Extensions.DependencyInjection;
@@ -7,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NAudio.CoreAudioApi;
 using NAudio.Wave;
+using System.Diagnostics;
 
 namespace AiAssistLibrary.Services;
 
@@ -69,9 +69,9 @@ public class AudioCapturePump : BackgroundService // removed sealed
 			var chain = resampler.BuildChain(sourceProvider);
 			var target = chain.WaveFormat;
 
-			var bytesPerMs = target.AverageBytesPerSecond /1000;
+			var bytesPerMs = target.AverageBytesPerSecond / 1000;
 			var requested = bytesPerMs * _opts.ChunkMilliseconds;
-			var minimum = Math.Max(target.AverageBytesPerSecond /100, target.BlockAlign);
+			var minimum = Math.Max(target.AverageBytesPerSecond / 100, target.BlockAlign);
 			var chunkBytes = Math.Max(requested, minimum);
 			chunkBytes -= chunkBytes % target.BlockAlign;
 
@@ -79,22 +79,22 @@ public class AudioCapturePump : BackgroundService // removed sealed
 			await speech.StartAsync(stoppingToken);
 
 			var meter = Stopwatch.StartNew();
-			long resamplerBytesThisSec =0;
-			int zeroReadsThisSec =0;
-			int consecutiveZeroReads =0;
+			long resamplerBytesThisSec = 0;
+			int zeroReadsThisSec = 0;
+			int consecutiveZeroReads = 0;
 			bool hypothesisLogged = false;
 
 			try
 			{
 				while (!stoppingToken.IsCancellationRequested)
 				{
-					int read = chain.Read(buffer,0, buffer.Length);
-					if (read >0)
+					int read = chain.Read(buffer, 0, buffer.Length);
+					if (read > 0)
 					{
-						speech.Write(new ReadOnlySpan<byte>(buffer,0, read));
+						speech.Write(new ReadOnlySpan<byte>(buffer, 0, read));
 						resamplerBytesThisSec += read;
-						zeroReadsThisSec =0;
-						consecutiveZeroReads =0;
+						zeroReadsThisSec = 0;
+						consecutiveZeroReads = 0;
 						hypothesisLogged = false;
 					}
 					else
@@ -105,14 +105,14 @@ public class AudioCapturePump : BackgroundService // removed sealed
 						if (_enableZeroReadHypothesisLogging)
 						{
 							int buffered = _bufferedBytes();
-							if (!hypothesisLogged && buffered >0 && consecutiveZeroReads >=10)
+							if (!hypothesisLogged && buffered > 0 && consecutiveZeroReads >= 10)
 							{
 								_log.LogWarning(
 									"Hypothesis: resampler returning zeros while source has data (Buffered={Buffered} B, ZeroReads={ZeroReads}).",
 									buffered, consecutiveZeroReads);
 								hypothesisLogged = true;
 							}
-							if (buffered ==0)
+							if (buffered == 0)
 							{
 								hypothesisLogged = false;
 							}
@@ -121,13 +121,13 @@ public class AudioCapturePump : BackgroundService // removed sealed
 						await Task.Delay(5, stoppingToken);
 					}
 
-					if (meter.ElapsedMilliseconds >=1000)
+					if (meter.ElapsedMilliseconds >= 1000)
 					{
 						_log.LogDebug(
 							"{Label}: read {Bps} B/s, zeroReads {ZeroReads}, consecutiveZeroReads {Consecutive}, buffered {Buffered} B",
 							_meterLabel, resamplerBytesThisSec, zeroReadsThisSec, consecutiveZeroReads, _bufferedBytes());
-						resamplerBytesThisSec =0;
-						zeroReadsThisSec =0;
+						resamplerBytesThisSec = 0;
+						zeroReadsThisSec = 0;
 						meter.Restart();
 					}
 				}

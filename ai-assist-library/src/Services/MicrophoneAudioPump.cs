@@ -1,11 +1,7 @@
 using AudioCapture.Services;
 using AudioCapture.Settings;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using NAudio.CoreAudioApi;
-using NAudio.Wave;
 
 namespace AiAssistLibrary.Services;
 

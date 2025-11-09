@@ -20,7 +20,7 @@ public sealed class AudioDeviceSelector
 	public MMDevice SelectRenderDevice()
 	{
 		var devices = _enumerator.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active).ToList();
-		if (devices.Count ==0) throw new InvalidOperationException("No active render endpoints found.");
+		if (devices.Count == 0) throw new InvalidOperationException("No active render endpoints found.");
 
 		if (!string.IsNullOrWhiteSpace(_opts.DeviceNameContains))
 		{
@@ -42,7 +42,7 @@ public sealed class AudioDeviceSelector
 	public MMDevice SelectCaptureDevice()
 	{
 		var devices = _enumerator.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active).ToList();
-		if (devices.Count ==0) throw new InvalidOperationException("No active capture endpoints found.");
+		if (devices.Count == 0) throw new InvalidOperationException("No active capture endpoints found.");
 
 		if (!string.IsNullOrWhiteSpace(_opts.MicrophoneNameContains))
 		{

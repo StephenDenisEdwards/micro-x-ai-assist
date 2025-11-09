@@ -8,7 +8,6 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Serilog;
-using AiAssistLibrary.Services.QuestionDetection;
 
 var builder = Host.CreateApplicationBuilder(args);
 

@@ -1,13 +1,12 @@
-using System.Diagnostics;
+using AiAssistLibrary.Services.QuestionDetection;
 using AiAssistLibrary.Settings;
 using AudioCapture.Settings;
 using Microsoft.CognitiveServices.Speech;
 using Microsoft.CognitiveServices.Speech.Audio;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using AiAssistLibrary.Services.QuestionDetection;
-using Microsoft.Extensions.DependencyInjection;
-using System.Net.Http;
+using System.Diagnostics;
 
 namespace AiAssistLibrary.Services;
 
@@ -48,7 +47,7 @@ public sealed class SpeechPushClient : IAsyncDisposable
 		if (string.IsNullOrWhiteSpace(key)) throw new InvalidOperationException("Speech key not configured.");
 		if (string.IsNullOrWhiteSpace(_opts.Region)) throw new InvalidOperationException("Speech region not configured.");
 		if (string.IsNullOrWhiteSpace(_opts.Language)) throw new InvalidOperationException("Speech recognition language not configured.");
-		if (a.TargetChannels !=1 || a.TargetBitsPerSample !=16) throw new InvalidOperationException("AudioOptions must produce16-bit mono PCM.");
+		if (a.TargetChannels != 1 || a.TargetBitsPerSample != 16) throw new InvalidOperationException("AudioOptions must produce16-bit mono PCM.");
 		var speechConfig = SpeechConfig.FromSubscription(key, _opts.Region);
 		speechConfig.SpeechRecognitionLanguage = _opts.Language;
 		speechConfig.SetProperty("SpeechServiceResponse_RequestPunctuation", "true");
@@ -81,7 +80,9 @@ public sealed class SpeechPushClient : IAsyncDisposable
 					{
 						_log.LogInformation("[{Tag}] [QUESTION conf={Conf:F2}] {Q}", _channelTag, q.Confidence, q.Text);
 						// direct console line to make questions stand out
+						Console.ForegroundColor = ConsoleColor.Green;
 						Console.WriteLine($"[{_channelTag}] QUESTION: {q.Text} (conf {q.Confidence:F2})");
+						Console.ResetColor();
 						QuestionDetected?.Invoke(q);
 					}
 				}
@@ -109,9 +110,9 @@ public sealed class SpeechPushClient : IAsyncDisposable
 		var arr = pcm16Mono.ToArray();
 		_pushStream.Write(arr);
 		Interlocked.Add(ref _bytesPushedThisSecond, arr.Length);
-		if (_meterSw.ElapsedMilliseconds >=1000)
+		if (_meterSw.ElapsedMilliseconds >= 1000)
 		{
-			var bps = Interlocked.Exchange(ref _bytesPushedThisSecond,0);
+			var bps = Interlocked.Exchange(ref _bytesPushedThisSecond, 0);
 			_log.LogDebug("{Tag} PushStream: wrote {Bps} B/s to Azure", _channelTag, bps);
 			_meterSw.Restart();
 		}
