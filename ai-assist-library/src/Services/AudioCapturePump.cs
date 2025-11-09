@@ -89,15 +89,18 @@ public class AudioCapturePump : BackgroundService // removed sealed
 				while (!stoppingToken.IsCancellationRequested)
 				{
 					// Manual trigger: SPACE invokes question detection on latest partial.
-					if (Console.KeyAvailable)
-					{
-						var key = Console.ReadKey(intercept: true);
-						if (key.Key == ConsoleKey.Spacebar)
-						{
-							_log.LogDebug("{Channel} space key detected -> manual question detection.", _channelTag);
-							speech.ManualDetectLatestPartial();
-						}
-					}
+					//if (Console.KeyAvailable)
+					//{
+					//	var key = Console.ReadKey(intercept: true);
+					//	if (key.Key == ConsoleKey.Spacebar)
+					//	{
+					//		//_log.LogDebug("{Channel} space key detected -> manual question detection.", _channelTag);
+					//		//speech.ManualDetectLatestPartial();
+					//		Console.ForegroundColor = ConsoleColor.DarkRed;
+					//		Console.WriteLine("X");
+					//		speech.ManualDetectLatestPartial();
+					//	}
+					//}
 
 					int read = chain.Read(buffer, 0, buffer.Length);
 					if (read > 0)

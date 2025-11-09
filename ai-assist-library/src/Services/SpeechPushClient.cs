@@ -29,9 +29,9 @@ public sealed class SpeechPushClient : IAsyncDisposable
 	public event Action<DetectedQuestion>? QuestionDetected;
 
 	// Track latest partial so a manual trigger (space key) can run detection on it.
-	private volatile string? _lastPartialText;
-	private TimeSpan _lastPartialStart;
-	private TimeSpan _lastPartialEnd;
+	//private volatile string? _lastPartialText;
+	//private TimeSpan _lastPartialStart;
+	//private TimeSpan _lastPartialEnd;
 
 	// Track text already manually detected to avoid duplicate processing on final.
 	private string? _lastManualDetectionText;
@@ -74,10 +74,12 @@ public sealed class SpeechPushClient : IAsyncDisposable
 		{
 			if (!string.IsNullOrWhiteSpace(e.Result.Text))
 			{
-				_lastPartialText = e.Result.Text;
-				_lastPartialStart = TimeSpan.FromTicks(e.Result.OffsetInTicks);
-				_lastPartialEnd = _lastPartialStart + e.Result.Duration;
+				//_lastPartialText = e.Result.Text;
+				//_lastPartialStart = TimeSpan.FromTicks(e.Result.OffsetInTicks);
+				//_lastPartialEnd = _lastPartialStart + e.Result.Duration;
 				_log.LogInformation("{Tag} [partial] {Text}", _channelTag, e.Result.Text);
+				//RunDetection(e.Result.Text, TimeSpan.FromTicks(e.Result.OffsetInTicks), TimeSpan.FromTicks(e.Result.OffsetInTicks) + e.Result.Duration, manual: false);
+
 			}
 		};
 		_recognizer.Recognized += (s, e) =>
@@ -86,10 +88,10 @@ public sealed class SpeechPushClient : IAsyncDisposable
 			{
 				_log.LogInformation("{Tag} [final] {Text}", _channelTag, e.Result.Text);
 				// Skip if we already manually detected this exact text.
-				if (_detector is not null && e.Result.Text != _lastManualDetectionText)
-				{
-					RunDetection(e.Result.Text, TimeSpan.FromTicks(e.Result.OffsetInTicks), TimeSpan.FromTicks(e.Result.OffsetInTicks) + e.Result.Duration, manual: false);
-				}
+				//if (_detector is not null && e.Result.Text != _lastManualDetectionText)
+				//{
+				RunDetection(e.Result.Text, TimeSpan.FromTicks(e.Result.OffsetInTicks), TimeSpan.FromTicks(e.Result.OffsetInTicks) + e.Result.Duration, manual: false);
+				//}
 			}
 		};
 		_recognizer.Canceled += (s, e) => _log.LogWarning("{Tag} canceled: Reason={Reason}, ErrorCode={ErrorCode}, Error={Error}", _channelTag, e.Reason, e.ErrorCode, e.ErrorDetails);
@@ -130,26 +132,37 @@ public sealed class SpeechPushClient : IAsyncDisposable
 	/// <summary>
 	/// Manually trigger question detection on the latest partial hypothesis (e.g. space key).
 	/// </summary>
-	public void ManualDetectLatestPartial()
-	{
-		if (_detector is null) return;
-		var text = _lastPartialText;
-		if (string.IsNullOrWhiteSpace(text)) return;
-		_lastManualDetectionText = text;
-		_log.LogDebug("{Tag} manual detection invoked on partial: {Text}", _channelTag, text);
-		RunDetection(text, _lastPartialStart, _lastPartialEnd, manual: true);
-	}
+	//public void ManualDetectLatestPartial()
+	//{
+	//	if (_detector is null) return;
+	//	var text = _lastPartialText;
+	//	if (string.IsNullOrWhiteSpace(text)) return;
+	//	_lastManualDetectionText = text;
+	//	//_log.LogDebug("{Tag} manual detection invoked on partial: {Text}", _channelTag, text);
+	//	Console.ForegroundColor = ConsoleColor.DarkRed;
+
+	//	Console.WriteLine("LM: {0}", _lastManualDetectionText);
+
+	//	Console.ForegroundColor = ConsoleColor.Yellow;
+	//	Console.WriteLine("LP: {0}", _lastPartialText);
+
+	//	Console.ResetColor();
+
+	//	return;
+
+	//	RunDetection(text, _lastPartialStart, _lastPartialEnd, manual: true);
+	//}
 
 	/// <summary>
 	/// Manually trigger detection on arbitrary user-entered text (not tied to current partial).
 	/// </summary>
-	public void ManualDetect(string text)
-	{
-		if (_detector is null || string.IsNullOrWhiteSpace(text)) return;
-		_lastManualDetectionText = text;
-		_log.LogDebug("{Tag} manual detection invoked on custom text: {Text}", _channelTag, text);
-		RunDetection(text, TimeSpan.Zero, TimeSpan.Zero, manual: true);
-	}
+	//public void ManualDetect(string text)
+	//{
+	//	if (_detector is null || string.IsNullOrWhiteSpace(text)) return;
+	//	_lastManualDetectionText = text;
+	//	_log.LogDebug("{Tag} manual detection invoked on custom text: {Text}", _channelTag, text);
+	//	RunDetection(text, TimeSpan.Zero, TimeSpan.Zero, manual: true);
+	//}
 
 	private void RunDetection(string text, TimeSpan start, TimeSpan end, bool manual)
 	{
