@@ -8,6 +8,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Serilog;
+using AiAssistLibrary.Services.QuestionDetection;
 
 var builder = Host.CreateApplicationBuilder(args);
 
@@ -23,9 +24,12 @@ Log.Logger = new LoggerConfiguration()
 builder.Logging.ClearProviders();
 builder.Logging.AddSerilog();
 
+builder.Services.AddHttpClient();
+
 // Options
 builder.Services.Configure<AudioOptions>(builder.Configuration.GetSection("Audio"));
 builder.Services.Configure<SpeechOptions>(builder.Configuration.GetSection("Speech"));
+builder.Services.Configure<QuestionDetectionOptions>(builder.Configuration.GetSection("QuestionDetection"));
 
 // Audio capture services
 builder.Services.AddSingleton<AudioDeviceSelector>();
@@ -60,6 +64,6 @@ if (string.IsNullOrWhiteSpace(speechKey))
 var audioOpts = app.Services.GetRequiredService<IOptions<AudioOptions>>().Value;
 if (audioOpts.EnableHeadphoneReminder)
 	logger.LogInformation(
-		"Tip: Use headphones and route Teams 'Speakers' to the selected device to avoid local voice bleed.");
+		"Tip: Use headphones to avoid local voice bleed into loopback capture.");
 
 await app.RunAsync();
