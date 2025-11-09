@@ -36,8 +36,9 @@ builder.Services.AddSingleton<MicrophoneSource>();
 builder.Services.AddTransient<AudioResampler>();
 builder.Services.AddTransient<SpeechPushClient>();
 
-builder.Services.AddHostedService<CapturePump>();
-builder.Services.AddHostedService<MicCapturePump>();
+// Hosted pumps
+builder.Services.AddHostedService<LoopbackAudioPump>();
+builder.Services.AddHostedService<MicrophoneAudioPump>();
 
 var app = builder.Build();
 

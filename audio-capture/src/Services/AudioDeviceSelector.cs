@@ -20,7 +20,7 @@ public sealed class AudioDeviceSelector
 	public MMDevice SelectRenderDevice()
 	{
 		var devices = _enumerator.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active).ToList();
-		if (devices.Count == 0) throw new InvalidOperationException("No active render endpoints found.");
+		if (devices.Count ==0) throw new InvalidOperationException("No active render endpoints found.");
 
 		if (!string.IsNullOrWhiteSpace(_opts.DeviceNameContains))
 		{
@@ -42,7 +42,7 @@ public sealed class AudioDeviceSelector
 	public MMDevice SelectCaptureDevice()
 	{
 		var devices = _enumerator.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active).ToList();
-		if (devices.Count == 0) throw new InvalidOperationException("No active capture endpoints found.");
+		if (devices.Count ==0) throw new InvalidOperationException("No active capture endpoints found.");
 
 		if (!string.IsNullOrWhiteSpace(_opts.MicrophoneNameContains))
 		{
@@ -56,8 +56,19 @@ public sealed class AudioDeviceSelector
 			}
 		}
 
-		var def = _enumerator.GetDefaultAudioEndpoint(DataFlow.Capture, Role.Communications);
-		_log.LogInformation("Selected default capture endpoint: {Name}", def.FriendlyName);
-		return def;
+		// Prefer Communications default, but fall back to Multimedia if not available
+		try
+		{
+			var defComm = _enumerator.GetDefaultAudioEndpoint(DataFlow.Capture, Role.Communications);
+			_log.LogInformation("Selected default capture endpoint (Communications): {Name}", defComm.FriendlyName);
+			return defComm;
+		}
+		catch (Exception ex)
+		{
+			_log.LogDebug(ex, "No default Communications capture endpoint; falling back to Multimedia.");
+			var defMulti = _enumerator.GetDefaultAudioEndpoint(DataFlow.Capture, Role.Multimedia);
+			_log.LogInformation("Selected default capture endpoint (Multimedia): {Name}", defMulti.FriendlyName);
+			return defMulti;
+		}
 	}
 }
