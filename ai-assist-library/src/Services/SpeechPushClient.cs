@@ -28,6 +28,14 @@ public sealed class SpeechPushClient : IAsyncDisposable
 
 	public event Action<DetectedQuestion>? QuestionDetected;
 
+	// Track latest partial so a manual trigger (space key) can run detection on it.
+	private volatile string? _lastPartialText;
+	private TimeSpan _lastPartialStart;
+	private TimeSpan _lastPartialEnd;
+
+	// Track text already manually detected to avoid duplicate processing on final.
+	private string? _lastManualDetectionText;
+
 	public SpeechPushClient(
 		ILogger<SpeechPushClient> log,
 		IOptions<SpeechOptions> opts,
@@ -64,27 +72,23 @@ public sealed class SpeechPushClient : IAsyncDisposable
 
 		_recognizer.Recognizing += (s, e) =>
 		{
-			if (!string.IsNullOrWhiteSpace(e.Result.Text)) _log.LogInformation("{Tag} [partial] {Text}", _channelTag, e.Result.Text);
+			if (!string.IsNullOrWhiteSpace(e.Result.Text))
+			{
+				_lastPartialText = e.Result.Text;
+				_lastPartialStart = TimeSpan.FromTicks(e.Result.OffsetInTicks);
+				_lastPartialEnd = _lastPartialStart + e.Result.Duration;
+				_log.LogInformation("{Tag} [partial] {Text}", _channelTag, e.Result.Text);
+			}
 		};
 		_recognizer.Recognized += (s, e) =>
 		{
 			if (e.Result.Reason == ResultReason.RecognizedSpeech && !string.IsNullOrWhiteSpace(e.Result.Text))
 			{
 				_log.LogInformation("{Tag} [final] {Text}", _channelTag, e.Result.Text);
-				if (_detector is not null)
+				// Skip if we already manually detected this exact text.
+				if (_detector is not null && e.Result.Text != _lastManualDetectionText)
 				{
-					var start = TimeSpan.FromTicks(e.Result.OffsetInTicks);
-					var end = start + e.Result.Duration;
-					var questions = _detector.Detect(e.Result.Text, start, end);
-					foreach (var q in questions.Where(q => q.Confidence >= _qdOpts.MinConfidence))
-					{
-						_log.LogInformation("[{Tag}] [QUESTION conf={Conf:F2}] {Q}", _channelTag, q.Confidence, q.Text);
-						// direct console line to make questions stand out
-						Console.ForegroundColor = ConsoleColor.Green;
-						Console.WriteLine($"[{_channelTag}] QUESTION: {q.Text} (conf {q.Confidence:F2})");
-						Console.ResetColor();
-						QuestionDetected?.Invoke(q);
-					}
+					RunDetection(e.Result.Text, TimeSpan.FromTicks(e.Result.OffsetInTicks), TimeSpan.FromTicks(e.Result.OffsetInTicks) + e.Result.Duration, manual: false);
 				}
 			}
 		};
@@ -103,7 +107,12 @@ public sealed class SpeechPushClient : IAsyncDisposable
 	public SpeechPushClient SetChannelTag(string tag) { if (!string.IsNullOrWhiteSpace(tag)) _channelTag = tag; return this; }
 
 	public async Task StartAsync(CancellationToken ct)
-	{ if (_started) return; await _recognizer.StartContinuousRecognitionAsync().ConfigureAwait(false); _meterSw.Restart(); _started = true; }
+	{
+		if (_started) return;
+		await _recognizer.StartContinuousRecognitionAsync().ConfigureAwait(false);
+		_meterSw.Restart();
+		_started = true;
+	}
 
 	public void Write(ReadOnlySpan<byte> pcm16Mono)
 	{
@@ -115,6 +124,51 @@ public sealed class SpeechPushClient : IAsyncDisposable
 			var bps = Interlocked.Exchange(ref _bytesPushedThisSecond, 0);
 			_log.LogDebug("{Tag} PushStream: wrote {Bps} B/s to Azure", _channelTag, bps);
 			_meterSw.Restart();
+		}
+	}
+
+	/// <summary>
+	/// Manually trigger question detection on the latest partial hypothesis (e.g. space key).
+	/// </summary>
+	public void ManualDetectLatestPartial()
+	{
+		if (_detector is null) return;
+		var text = _lastPartialText;
+		if (string.IsNullOrWhiteSpace(text)) return;
+		_lastManualDetectionText = text;
+		_log.LogDebug("{Tag} manual detection invoked on partial: {Text}", _channelTag, text);
+		RunDetection(text, _lastPartialStart, _lastPartialEnd, manual: true);
+	}
+
+	/// <summary>
+	/// Manually trigger detection on arbitrary user-entered text (not tied to current partial).
+	/// </summary>
+	public void ManualDetect(string text)
+	{
+		if (_detector is null || string.IsNullOrWhiteSpace(text)) return;
+		_lastManualDetectionText = text;
+		_log.LogDebug("{Tag} manual detection invoked on custom text: {Text}", _channelTag, text);
+		RunDetection(text, TimeSpan.Zero, TimeSpan.Zero, manual: true);
+	}
+
+	private void RunDetection(string text, TimeSpan start, TimeSpan end, bool manual)
+	{
+		try
+		{
+			var questions = _detector?.Detect(text, start, end) ?? Array.Empty<DetectedQuestion>();
+			foreach (var q in questions.Where(q => q.Confidence >= _qdOpts.MinConfidence))
+			{
+				var mode = manual ? "MANUAL" : "FINAL";
+				_log.LogInformation("[{Tag}] [{Mode} QUESTION conf={Conf:F2}] {Q}", _channelTag, mode, q.Confidence, q.Text);
+				Console.ForegroundColor = manual ? ConsoleColor.Yellow : ConsoleColor.Green;
+				Console.WriteLine($"[{_channelTag}] {mode} QUESTION: {q.Text} (conf {q.Confidence:F2})");
+				Console.ResetColor();
+				QuestionDetected?.Invoke(q);
+			}
+		}
+		catch (Exception ex)
+		{
+			_log.LogError(ex, "{Tag} manual detection failed.", _channelTag);
 		}
 	}
 }
