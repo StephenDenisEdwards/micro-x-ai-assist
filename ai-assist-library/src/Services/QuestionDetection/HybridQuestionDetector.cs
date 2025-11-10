@@ -1,10 +1,9 @@
 using Microsoft.Extensions.Logging;
-using System.Text;
 using System.Text.Json;
 
 namespace AiAssistLibrary.Services.QuestionDetection;
 
-// Hybrid detector placeholder: applies rule detector and can be extended to call external classifiers.
+// Applies rule detector then (optionally) asks Azure to re-classify medium confidence items.
 public sealed class HybridQuestionDetector : IQuestionDetector
 {
 	private const string ApiVersion = "2024-12-01-preview";
@@ -16,6 +15,14 @@ public sealed class HybridQuestionDetector : IQuestionDetector
 	private readonly string? _deployment;
 	private readonly string? _apiKey;
 	private readonly bool _enabled;
+
+	// Imperative info-seeking starters (kept local to avoid changing RuleQuestionDetector).
+	private static readonly string[] ImperativeInfoStarters =
+	{
+		"explain", "describe", "tell me", "show me", "give me", "help me",
+		"please explain", "please describe", "please tell me", "please show me", "please give me", "please help me",
+		"walk me through", "please walk me through"
+	};
 
 	public HybridQuestionDetector(
 		ILogger<HybridQuestionDetector>? log,
@@ -37,6 +44,7 @@ public sealed class HybridQuestionDetector : IQuestionDetector
 				   !string.IsNullOrWhiteSpace(_endpoint) &&
 				   !string.IsNullOrWhiteSpace(_deployment) &&
 				   !string.IsNullOrWhiteSpace(_apiKey);
+
 		if (!_enabled)
 		{
 			_log?.LogDebug("HybridQuestionDetector disabled: endpoint={Endpoint}, deployment={Deployment}, keyPresent={Key}",
@@ -49,30 +57,107 @@ public sealed class HybridQuestionDetector : IQuestionDetector
 		var prelim = _rule.Detect(transcriptSegment, start, end, speakerId).ToList();
 		if (!_enabled) return prelim;
 
-		var review = prelim.Where(q => q.Confidence >= _minConfidence && q.Confidence < 0.7).ToList();
+		static bool IsImperativeInfoRequest(string text)
+		{
+			var lower = text.Trim().ToLowerInvariant();
+			foreach (var s in ImperativeInfoStarters)
+				if (lower.StartsWith(s + " ")) return true;
+			return false;
+		}
+
+		// Review:
+		// - Medium confidence items (<0.7) that are >= _minConfidence
+		// - Imperative info requests (<0.7) even if below _minConfidence
+		var review = prelim.Where(q =>
+				q.Confidence < 0.7 &&
+				(q.Confidence >= _minConfidence || IsImperativeInfoRequest(q.Text)))
+			.ToList();
+
 		if (review.Count == 0) return prelim;
 
 		try
 		{
-			var promptSb = new StringBuilder("Classify each line strictly as QUESTION or NOT. Output JSON lines: {\"text\":\"...\",\"isQuestion\":true|false}. Lines:\n");
-			foreach (var r in review) promptSb.AppendLine(r.Text);
+			// Stable ID mapping.
+			var reviewItems = review.Select((q, i) => new { id = i, text = q.Text }).ToArray();
+			var linesJson = JsonSerializer.Serialize(reviewItems);
+
+			var messages = new[]
+			{
+				new
+				{
+					role = "system",
+					content =
+						"You classify whether each utterance is a QUESTION. " +
+						"QUESTION = seeks information, clarification, definition, comparison, explanation, or conceptual instruction. " +
+						"Imperative info requests like 'Explain X', 'Describe Y', 'Walk me through Z' are QUESTION. " +
+						"NOT = purely action commands (e.g. 'Deploy the update now.'), greetings, statements, status reports."
+				},
+				new
+				{
+					role = "user",
+					content =
+						"Return strict JSON only. Do not add commentary. Provide an array of {id,isQuestion} under property 'classifications'."
+				},
+				new
+				{
+					role = "user",
+					content =
+						"Examples:\n" +
+						"\"Explain dependency injection in .NET applications.\" => true\n" +
+						"\"Explain the difference between class and struct in C sharp.\" => true\n" +
+						"\"It's stable, right?\" => true\n" +
+						"\"Deploy the update now.\" => false\n" +
+						"\"Send me the report.\" => false"
+				},
+				new
+				{
+					role = "user",
+					content = $"Lines: {linesJson}"
+				}
+			};
 
 			var payload = new
 			{
-				messages = new[]
+				messages,
+				model = _deployment,
+				response_format = new
 				{
-					new { role = "system", content = "You classify whether a line is a question." },
-					new { role = "user", content = promptSb.ToString() }
-				},
-				//temperature = 0,
-				// Explicit model (deployment) for forward compatibility even though deployment is in URL
-				model = _deployment
+					type = "json_schema",
+					json_schema = new
+					{
+						name = "question_classification",
+						schema = new
+						{
+							type = "object",
+							required = new[] { "classifications" },
+							additionalProperties = false,
+							properties = new
+							{
+								classifications = new
+								{
+									type = "array",
+									items = new
+									{
+										type = "object",
+										required = new[] { "id", "isQuestion" },
+										additionalProperties = false,
+										properties = new
+										{
+											id = new { type = "integer" },
+											isQuestion = new { type = "boolean" }
+										}
+									}
+								}
+							}
+						}
+					}
+				}
 			};
 
 			var url = $"{_endpoint}/openai/deployments/{_deployment}/chat/completions?api-version={ApiVersion}";
 			using var req = new HttpRequestMessage(HttpMethod.Post, url)
 			{
-				Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json")
+				Content = new StringContent(JsonSerializer.Serialize(payload), System.Text.Encoding.UTF8, "application/json")
 			};
 			req.Headers.Add("api-key", _apiKey!);
 
@@ -80,29 +165,45 @@ public sealed class HybridQuestionDetector : IQuestionDetector
 			if (!resp.IsSuccessStatusCode)
 			{
 				var body = resp.Content is null ? "<no body>" : resp.Content.ReadAsStringAsync().GetAwaiter().GetResult();
-				_log?.LogWarning("Azure OpenAI fallback non-success. Status={StatusCode}. Body={Body}", (int)resp.StatusCode, body);
-				return prelim; // graceful fallback
+				_log?.LogWarning("Azure fallback non-success. Status={StatusCode}. Body={Body}", (int)resp.StatusCode, body);
+				return prelim;
 			}
 
 			using var doc = JsonDocument.Parse(resp.Content.ReadAsStream());
-			var content = doc.RootElement.GetProperty("choices")[0].GetProperty("message").GetProperty("content").GetString() ?? string.Empty;
-
-			foreach (var r in review)
+			var content = doc.RootElement.GetProperty("choices")[0].GetProperty("message").GetProperty("content").GetString();
+			if (string.IsNullOrWhiteSpace(content))
 			{
-				if (content.Contains(r.Text) && content.Contains("\"isQuestion\":true"))
-				{
-					r.Confidence = Math.Min(1.0, r.Confidence + 0.2);
-				}
-				else if (content.Contains(r.Text) && content.Contains("\"isQuestion\":false"))
-				{
-					r.Confidence = Math.Min(r.Confidence, 0.4);
-				}
+				_log?.LogWarning("Azure fallback returned empty content");
+				return prelim;
+			}
+
+			using var classifiedDoc = JsonDocument.Parse(content);
+			if (!classifiedDoc.RootElement.TryGetProperty("classifications", out var arr) || arr.ValueKind != JsonValueKind.Array)
+			{
+				_log?.LogWarning("Azure fallback unexpected JSON: {Content}", content);
+				return prelim;
+			}
+
+			foreach (var item in arr.EnumerateArray())
+			{
+				if (!item.TryGetProperty("id", out var idEl) || !item.TryGetProperty("isQuestion", out var qEl))
+					continue;
+
+				var id = idEl.GetInt32();
+				if (id < 0 || id >= review.Count) continue;
+				var isQuestion = qEl.GetBoolean();
+				var original = review[id];
+				if (isQuestion)
+					original.Confidence = Math.Max(original.Confidence, 0.75); // elevate to stable acceptance
+				else
+					original.Confidence = Math.Min(original.Confidence, 0.4);  // push down ambiguous non-question
 			}
 		}
 		catch (Exception ex)
 		{
-			_log?.LogWarning(ex, "Azure OpenAI fallback failed");
+			_log?.LogWarning(ex, "Azure fallback failed");
 		}
+
 		return prelim;
 	}
 }
