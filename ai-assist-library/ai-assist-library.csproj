@@ -9,6 +9,7 @@
  <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.0" />
  <PackageReference Include="Microsoft.Extensions.Options" Version="8.0.0" />
  <PackageReference Include="Microsoft.CognitiveServices.Speech" Version="1.46.0" />
+ <PackageReference Include="Azure.Search.Documents" Version="11.5.1" />
  </ItemGroup>
  <ItemGroup>
  <ProjectReference Include="..\audio-capture\audio-capture.csproj" />

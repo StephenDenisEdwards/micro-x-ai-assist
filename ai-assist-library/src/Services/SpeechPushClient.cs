@@ -8,6 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System.Diagnostics;
+using AiAssistLibrary.ConversationMemory;
 
 namespace AiAssistLibrary.Services;
 
@@ -26,8 +27,11 @@ public sealed class SpeechPushClient : IAsyncDisposable
 	private readonly IQuestionDetector? _detector;
 	private readonly ILogger<HybridQuestionDetector>? _hybridLog;
 	private readonly HttpClient _httpClient;
+	private readonly ConversationMemoryClient? _memory;
+	private readonly PromptPackBuilder? _promptBuilder;
 
 	public event Action<DetectedQuestion>? QuestionDetected;
+	public event Action<PromptPack>? PromptPackReady; // new: fires when act detected and prompt pack assembled
 
 	// Track text already manually detected to avoid duplicate processing on final.
 	private string? _lastManualDetectionText;
@@ -37,6 +41,7 @@ public sealed class SpeechPushClient : IAsyncDisposable
 		IOptions<SpeechOptions> opts,
 		IOptions<AudioOptions> audioOpts,
 		IOptions<QuestionDetectionOptions> qdOpts,
+		IOptions<ConversationMemoryOptions> memoryOpts,
 		IServiceProvider services)
 	{
 		_log = log;
@@ -44,6 +49,8 @@ public sealed class SpeechPushClient : IAsyncDisposable
 		_qdOpts = qdOpts.Value;
 		_hybridLog = services.GetService(typeof(ILogger<HybridQuestionDetector>)) as ILogger<HybridQuestionDetector>;
 		_httpClient = services.GetRequiredService<HttpClient>();
+		_memory = services.GetService<ConversationMemoryClient>();
+		if (_memory != null) _promptBuilder = new PromptPackBuilder(_memory);
 		var a = audioOpts.Value;
 		var key = string.IsNullOrWhiteSpace(_opts.Key)
 			? Environment.GetEnvironmentVariable("AZURE_SPEECH_KEY")
@@ -78,21 +85,21 @@ public sealed class SpeechPushClient : IAsyncDisposable
 			if (!string.IsNullOrWhiteSpace(e.Result.Text))
 			{
 				_log.LogInformation("{Tag} [partial] (Speaker={Speaker}) {Text}", _channelTag, e.Result.SpeakerId, e.Result.Text);
-				// Question detection on partials currently disabled (retain existing behavior)
-				// RunDetection(e.Result.Text, TimeSpan.FromTicks(e.Result.OffsetInTicks), TimeSpan.FromTicks(e.Result.OffsetInTicks) + e.Result.Duration, manual: false, e.Result.SpeakerId);
 			}
 		};
-		_transcriber.Transcribed += (s, e) =>
+		_transcriber.Transcribed += async (s, e) =>
 		{
 			if (e.Result.Reason == ResultReason.RecognizedSpeech && !string.IsNullOrWhiteSpace(e.Result.Text))
 			{
 				_log.LogInformation("{Tag} [final] (Speaker={Speaker}) {Text}", _channelTag, e.Result.SpeakerId, e.Result.Text);
 				RunDetection(e.Result.Text, TimeSpan.FromTicks(e.Result.OffsetInTicks), TimeSpan.FromTicks(e.Result.OffsetInTicks) + e.Result.Duration, manual: false, e.Result.SpeakerId);
-
-				// PropertyCollection isn't enumerable in this SDK version; remove invalid foreach.
-				// If specific properties are needed, they can be accessed via GetProperty(string key).
-				// Example (commented):
-				// var speakerProp = e.Result.Properties.GetProperty("SpeakerId");
+				// Upsert final line to memory
+				var nowMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+				if (_memory != null)
+				{
+					await _memory.UpsertFinalAsync(e.Result.SpeakerId ?? "?", e.Result.Text, nowMs,
+						nowMs + e.Result.Duration.TotalMilliseconds);
+				}
 			}
 			else if (e.Result.Reason == ResultReason.NoMatch)
 			{
@@ -140,7 +147,20 @@ public sealed class SpeechPushClient : IAsyncDisposable
 		}
 	}
 
-	private void RunDetection(string text, TimeSpan start, TimeSpan end, bool manual, string? speakerId)
+	// Manual act injection (e.g. UI button) to treat arbitrary text as an act and build prompt pack.
+	public async Task PublishActAsync(string speaker, string actText)
+	{
+		if (string.IsNullOrWhiteSpace(actText) || _memory is null || _promptBuilder is null) return;
+		var nowMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+		var act = await _memory.UpsertActAsync(speaker, actText, nowMs, nowMs);
+		if (act != null)
+		{
+			var pack = await _promptBuilder.BuildAsync(actText, nowMs);
+			PromptPackReady?.Invoke(pack);
+		}
+	}
+
+	private async void RunDetection(string text, TimeSpan start, TimeSpan end, bool manual, string? speakerId)
 	{
 		try
 		{
@@ -153,6 +173,17 @@ public sealed class SpeechPushClient : IAsyncDisposable
 				Console.WriteLine($"[{_channelTag}] {mode} QUESTION: {q.Text} (conf {q.Confidence:F2}, speaker {speakerId ?? q.SpeakerId ?? "?"})");
 				Console.ResetColor();
 				QuestionDetected?.Invoke(q);
+				// Treat detected question as act: upsert and build prompt pack.
+				if (_memory != null && _promptBuilder != null)
+				{
+					var nowMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+					var act = await _memory.UpsertActAsync(speakerId ?? "?", q.Text, nowMs, nowMs);
+					if (act != null)
+					{
+						var pack = await _promptBuilder.BuildAsync(q.Text, nowMs);
+						PromptPackReady?.Invoke(pack);
+					}
+				}
 			}
 		}
 		catch (Exception ex)
