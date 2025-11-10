@@ -1,8 +1,8 @@
-using AiAssistLibrary.Services.QuestionDetection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Xunit.Abstractions;
+using AiAssistLibrary.Services.QuestionDetection; // Added for HybridQuestionDetector & DetectedQuestion
 
 namespace AiAssistLibrary.IntegrationTests;
 
@@ -55,6 +55,23 @@ public sealed class HybridDetector_AzureIntegrationTests
 				ExpectedQuestionTexts: SimulatedTranscription.ImperativeCodingRequestsExpectedQuestions)
 		};
 
+		// New C# interrogatives list
+		yield return new object[]
+		{
+			new DetectionScenario(
+				Name: "CSharpInterrogatives",
+				Utterances: SimulatedTranscription.CSharpInterrogativeQuestions,
+				ExpectedQuestionTexts: SimulatedTranscription.CSharpInterrogativeExpectedQuestions)
+		};
+
+		// New C# imperative commands list
+		yield return new object[]
+		{
+			new DetectionScenario(
+				Name: "CSharpImperatives",
+				Utterances: SimulatedTranscription.CSharpImperativeCommands,
+				ExpectedQuestionTexts: SimulatedTranscription.CSharpImperativeExpectedQuestions)
+		};
 	}
 
 	private static (string? endpoint, string? deployment, string? key) ReadAzureOpenAI()
