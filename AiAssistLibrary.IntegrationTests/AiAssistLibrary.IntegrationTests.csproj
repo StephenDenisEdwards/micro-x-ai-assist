@@ -1,18 +1,21 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
  <PropertyGroup>
  <TargetFramework>net8.0</TargetFramework>
  <ImplicitUsings>enable</ImplicitUsings>
  <Nullable>enable</Nullable>
- <UserSecretsId>c7703e61-34cf-44b7-b6c7-22bed810415d</UserSecretsId>
+ <UserSecretsId>387ea007-6235-4c82-abd6-e82f9f206b89</UserSecretsId>
  </PropertyGroup>
  <ItemGroup>
+ <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.0.0" />
  <PackageReference Include="xunit" Version="2.5.3" />
  <PackageReference Include="xunit.runner.visualstudio" Version="2.5.3">
  <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
  <PrivateAssets>all</PrivateAssets>
  </PackageReference>
- <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.10" />
+ <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.1" />
  <PackageReference Include="Xunit.SkippableFact" Version="1.4.13" />
+ <PackageReference Include="Microsoft.Extensions.Configuration" Version="8.0.0" />
+ <PackageReference Include="Microsoft.Extensions.Configuration.UserSecrets" Version="8.0.0" />
  </ItemGroup>
  <ItemGroup>
  <ProjectReference Include="..\ai-assist-library\ai-assist-library.csproj" />

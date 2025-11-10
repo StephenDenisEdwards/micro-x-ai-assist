@@ -1,4 +1,5 @@
 using AiAssistLibrary.Services.QuestionDetection;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Xunit.Abstractions;
@@ -16,8 +17,17 @@ public sealed class HybridDetector_AzureIntegrationTests
 		var dep = Environment.GetEnvironmentVariable("AZURE_OPENAI_DEPLOYMENT");
 		var key = Environment.GetEnvironmentVariable("AZURE_OPENAI_API_KEY");
 
-
-
+		if (string.IsNullOrWhiteSpace(ep) || string.IsNullOrWhiteSpace(dep) || string.IsNullOrWhiteSpace(key))
+		{
+			// Build configuration to pull from user secrets as fallback
+			var cfg = new ConfigurationBuilder()
+				.AddEnvironmentVariables() // keep precedence
+				.AddUserSecrets<HybridDetector_AzureIntegrationTests>(optional: true)
+				.Build();
+			ep = string.IsNullOrWhiteSpace(ep) ? cfg["AZURE_OPENAI_ENDPOINT"] ?? cfg["QuestionDetection:OpenAIEndpoint"] : ep;
+			dep = string.IsNullOrWhiteSpace(dep) ? cfg["AZURE_OPENAI_DEPLOYMENT"] ?? cfg["QuestionDetection:OpenAIDeployment"] : dep;
+			key = string.IsNullOrWhiteSpace(key) ? cfg["AZURE_OPENAI_API_KEY"] ?? cfg["QuestionDetection:OpenAIKey"] : key;
+		}
 
 		return (ep, dep, key);
 	}
@@ -29,7 +39,7 @@ public sealed class HybridDetector_AzureIntegrationTests
 		Skip.If(
 			string.IsNullOrWhiteSpace(endpoint) || string.IsNullOrWhiteSpace(deployment) ||
 			string.IsNullOrWhiteSpace(key),
-			"Azure OpenAI env vars not set: AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_DEPLOYMENT, AZURE_OPENAI_API_KEY");
+			"Azure OpenAI env vars or user secrets not set.");
 
 		using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
 		var detector = new HybridQuestionDetector(
