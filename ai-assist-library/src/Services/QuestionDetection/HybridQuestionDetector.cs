@@ -8,6 +8,7 @@ public sealed class HybridQuestionDetector : IQuestionDetector
 {
 	private const string ApiVersion = "2024-12-01-preview";
 	private readonly RuleQuestionDetector _rule = new();
+	private readonly RulesImperativeDetect _imperative = new();
 	private readonly double _minConfidence;
 	private readonly ILogger<HybridQuestionDetector>? _log;
 	private readonly HttpClient? _http;
@@ -40,10 +41,10 @@ public sealed class HybridQuestionDetector : IQuestionDetector
 		_deployment = deployment;
 		_apiKey = apiKey;
 		_enabled = enableFallback &&
-				   http is not null &&
-				   !string.IsNullOrWhiteSpace(_endpoint) &&
-				   !string.IsNullOrWhiteSpace(_deployment) &&
-				   !string.IsNullOrWhiteSpace(_apiKey);
+				 http is not null &&
+				 !string.IsNullOrWhiteSpace(_endpoint) &&
+				 !string.IsNullOrWhiteSpace(_deployment) &&
+				 !string.IsNullOrWhiteSpace(_apiKey);
 
 		if (!_enabled)
 		{
@@ -54,7 +55,34 @@ public sealed class HybridQuestionDetector : IQuestionDetector
 
 	public IReadOnlyList<DetectedQuestion> Detect(string transcriptSegment, TimeSpan start, TimeSpan end, string? speakerId = null)
 	{
-		var prelim = _rule.Detect(transcriptSegment, start, end, speakerId).ToList();
+		// Run both detectors; imperative detection promotes commands to questions.
+		var ruleQuestions = _rule.Detect(transcriptSegment, start, end, speakerId);
+		var imperativeQuestions = _imperative.Detect(transcriptSegment, start, end, speakerId);
+
+		// Merge, preferring higher confidence if duplicate text.
+		var merged = new Dictionary<string, DetectedQuestion>(StringComparer.OrdinalIgnoreCase);
+		void AddRange(IEnumerable<DetectedQuestion> src)
+		{
+			foreach (var q in src)
+			{
+				if (merged.TryGetValue(q.Text, out var existing))
+				{
+					existing.Confidence = Math.Max(existing.Confidence, q.Confidence);
+					// If one category is Imperative keep it (so we can distinguish later)
+					if (existing.Category != "Imperative" && q.Category == "Imperative")
+						existing.Category = q.Category;
+				}
+				else
+				{
+					merged[q.Text] = q;
+				}
+			}
+		}
+
+		AddRange(ruleQuestions);
+		AddRange(imperativeQuestions);
+
+		var prelim = merged.Values.ToList();
 		if (!_enabled) return prelim;
 
 		static bool IsImperativeInfoRequest(string text)
@@ -69,11 +97,11 @@ public sealed class HybridQuestionDetector : IQuestionDetector
 		// - Medium confidence items (<0.7) that are >= _minConfidence
 		// - Imperative info requests (<0.7) even if below _minConfidence
 		var review = prelim.Where(q =>
-				q.Confidence < 0.7 &&
+				q.Confidence <0.7 &&
 				(q.Confidence >= _minConfidence || IsImperativeInfoRequest(q.Text)))
 			.ToList();
 
-		if (review.Count == 0) return prelim;
+		if (review.Count ==0) return prelim;
 
 		try
 		{
@@ -190,13 +218,13 @@ public sealed class HybridQuestionDetector : IQuestionDetector
 					continue;
 
 				var id = idEl.GetInt32();
-				if (id < 0 || id >= review.Count) continue;
+				if (id <0 || id >= review.Count) continue;
 				var isQuestion = qEl.GetBoolean();
 				var original = review[id];
 				if (isQuestion)
-					original.Confidence = Math.Max(original.Confidence, 0.75); // elevate to stable acceptance
+					original.Confidence = Math.Max(original.Confidence,0.75); // elevate to stable acceptance
 				else
-					original.Confidence = Math.Min(original.Confidence, 0.4);  // push down ambiguous non-question
+					original.Confidence = Math.Min(original.Confidence,0.4); // push down ambiguous non-question
 			}
 		}
 		catch (Exception ex)

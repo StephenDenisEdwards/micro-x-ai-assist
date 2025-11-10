@@ -8,11 +8,7 @@ public sealed class RuleQuestionDetector : IQuestionDetector
 	{
 		"who", "what", "when", "where", "why", "how", "which", "whose", "whom",
 		"is", "are", "am", "was", "were", "do", "does", "did", "can", "could", "will", "would", "shall", "should",
-		"may", "might", "have", "has", "had",
-		// Imperative request starters that imply a question/ask
-		"explain", "describe", "tell me", "show me", "give me", "help me",
-		"please explain", "please describe", "please tell me", "please show me", "please give me", "please help me",
-		"walk me through", "please walk me through"
+		"may", "might", "have", "has", "had"
 	};
 
 	private static readonly Regex TagQuestionRegex = new(@"(?i)(,?\s+(isn['’]t it|doesn['’]t it|don['’]t you|right|okay|ok|no)\?)$", RegexOptions.Compiled);
@@ -48,7 +44,6 @@ public sealed class RuleQuestionDetector : IQuestionDetector
 			if (hasTag) confidence +=0.15;
 
 			// If it reads like a question/request but lacks a question mark, give it a baseline confidence.
-			// Previous threshold was <60 which excluded some valid ~60 char imperatives. Allow up to80 chars and inclusive.
 			if (!hasQuestionMark && startsInterrogative && sentence.Length <=80)
 				confidence = Math.Max(confidence,0.5);
 
@@ -60,7 +55,8 @@ public sealed class RuleQuestionDetector : IQuestionDetector
 					Confidence = Math.Min(confidence,1.0),
 					Start = cursorStart,
 					End = cursorStart + perSentenceApprox,
-					SpeakerId = speakerId
+					SpeakerId = speakerId,
+					Category = "Interrogative"
 				});
 			}
 

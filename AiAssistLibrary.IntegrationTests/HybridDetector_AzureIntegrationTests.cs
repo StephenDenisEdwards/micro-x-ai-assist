@@ -46,7 +46,7 @@ public sealed class HybridDetector_AzureIntegrationTests
 				ExpectedQuestionTexts: SimulatedTranscription.ImperativeRequestsExpectedQuestions)
 		};
 
-		// Extended coding imperatives
+		// Extended coding imperatives - all should be detected as questions
 		yield return new object[]
 		{
 			new DetectionScenario(

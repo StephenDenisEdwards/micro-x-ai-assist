@@ -1,3 +1,5 @@
+using System.Linq;
+
 namespace AiAssistLibrary.IntegrationTests;
 
 public sealed record SimulatedUtterance(string SpeakerId, string Text, TimeSpan Start, TimeSpan End);
@@ -57,7 +59,7 @@ public static class SimulatedTranscription
 	public static IReadOnlyList<SimulatedUtterance> ImperativeCodingRequests => new[]
 	{
 		new SimulatedUtterance("S1", "Define a variable of type int and assign it a value.", TimeSpan.FromSeconds(0), TimeSpan.FromSeconds(2)),
-		new SimulatedUtterance("S1", "Declare a constant called Pi with the value 3.14.", TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(4)),
+		new SimulatedUtterance("S1", "Declare a constant called Pi with the value3.14.", TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(4)),
 		new SimulatedUtterance("S1", "Create a method that prints \"Hello World\" to the console.", TimeSpan.FromSeconds(4), TimeSpan.FromSeconds(6)),
 		new SimulatedUtterance("S1", "Write a method that adds two integers and returns the result.", TimeSpan.FromSeconds(6), TimeSpan.FromSeconds(8)),
 		new SimulatedUtterance("S1", "Write a function that takes a string and returns its length.", TimeSpan.FromSeconds(8), TimeSpan.FromSeconds(10)),
@@ -132,8 +134,6 @@ public static class SimulatedTranscription
 		"Explain dependency injection in .NET applications.",
 		"Explain the difference between interface and abstract class."
 	};
-	public static IReadOnlyList<string> ImperativeCodingRequestsExpectedQuestions => new[]
-	{
-		"Explain how to log exceptions using ILogger in ASP.NET Core."
-	};
+	public static IReadOnlyList<string> ImperativeCodingRequestsExpectedQuestions =>
+		ImperativeCodingRequests.Select(u => u.Text).ToArray();
 }
