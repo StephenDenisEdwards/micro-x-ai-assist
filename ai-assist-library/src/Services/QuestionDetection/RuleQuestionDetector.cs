@@ -27,7 +27,7 @@ public sealed class RuleQuestionDetector : IQuestionDetector
 		foreach (var s in sentences)
 		{
 			var sentence = s.Trim();
-			if (sentence.Length ==0)
+			if (sentence.Length == 0)
 			{
 				cursorStart += perSentenceApprox;
 				continue;
@@ -38,21 +38,21 @@ public sealed class RuleQuestionDetector : IQuestionDetector
 			bool startsInterrogative = InterrogativeStarters.Any(w => lower.StartsWith(w + " "));
 			bool hasTag = TagQuestionRegex.IsMatch(sentence);
 
-			double confidence =0.0;
-			if (hasQuestionMark) confidence +=0.6;
-			if (startsInterrogative) confidence +=0.25;
-			if (hasTag) confidence +=0.15;
+			double confidence = 0.0;
+			if (hasQuestionMark) confidence += 0.6;
+			if (startsInterrogative) confidence += 0.25;
+			if (hasTag) confidence += 0.15;
 
 			// If it reads like a question/request but lacks a question mark, give it a baseline confidence.
-			if (!hasQuestionMark && startsInterrogative && sentence.Length <=80)
-				confidence = Math.Max(confidence,0.5);
+			if (!hasQuestionMark && startsInterrogative && sentence.Length <= 80)
+				confidence = Math.Max(confidence, 0.5);
 
-			if (confidence >=0.5)
+			if (confidence >= 0.5)
 			{
 				results.Add(new DetectedQuestion
 				{
 					Text = sentence,
-					Confidence = Math.Min(confidence,1.0),
+					Confidence = Math.Min(confidence, 1.0),
 					Start = cursorStart,
 					End = cursorStart + perSentenceApprox,
 					SpeakerId = speakerId,

@@ -30,7 +30,7 @@ public sealed class RulesImperativeDetect : IQuestionDetector
 		foreach (var s in sentences)
 		{
 			var sentence = s.Trim();
-			if (sentence.Length ==0)
+			if (sentence.Length == 0)
 			{
 				cursorStart += perSentenceApprox;
 				continue;
@@ -59,7 +59,7 @@ public sealed class RulesImperativeDetect : IQuestionDetector
 				results.Add(new DetectedQuestion
 				{
 					Text = sentence,
-					Confidence =0.8, // strong baseline so Azure fallback won't try to reclassify (<0.7 is reviewed)
+					Confidence = 0.8, // strong baseline so Azure fallback won't try to reclassify (<0.7 is reviewed)
 					Start = cursorStart,
 					End = cursorStart + perSentenceApprox,
 					SpeakerId = speakerId,

@@ -64,7 +64,7 @@ public sealed class RulesImperativeDetectTests
 
 		var qs = _detector.Detect(text, TimeSpan.Zero, TimeSpan.FromSeconds(100));
 		// There are51 imperatives above
-		Assert.True(qs.Count >=51, $"Expected at least51 imperative detections, got {qs.Count}");
+		Assert.True(qs.Count >= 51, $"Expected at least51 imperative detections, got {qs.Count}");
 		Assert.All(qs, q => Assert.Equal("Imperative", q.Category));
 	}
 
@@ -77,6 +77,6 @@ public sealed class RulesImperativeDetectTests
 		var qs = _detector.Detect(text, TimeSpan.Zero, TimeSpan.FromSeconds(2));
 		Assert.Single(qs);
 		Assert.Equal("Imperative", qs[0].Category);
-		Assert.True(qs[0].Confidence >=0.75);
+		Assert.True(qs[0].Confidence >= 0.75);
 	}
 }

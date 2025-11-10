@@ -1,5 +1,3 @@
-using System.Linq;
-
 namespace AiAssistLibrary.IntegrationTests;
 
 public sealed record SimulatedUtterance(string SpeakerId, string Text, TimeSpan Start, TimeSpan End);

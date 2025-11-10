@@ -1,3 +1,4 @@
+using AiAssistLibrary.Extensions;
 using AiAssistLibrary.Services;
 using AiAssistLibrary.Settings;
 using AudioCapture.Services;
@@ -8,7 +9,6 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Serilog;
-using AiAssistLibrary.Extensions;
 
 var builder = Host.CreateApplicationBuilder(args);
 

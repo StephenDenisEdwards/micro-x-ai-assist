@@ -97,11 +97,11 @@ public sealed class HybridQuestionDetector : IQuestionDetector
 		// - Medium confidence items (<0.7) that are >= _minConfidence
 		// - Imperative info requests (<0.7) even if below _minConfidence
 		var review = prelim.Where(q =>
-				q.Confidence <0.7 &&
+				q.Confidence < 0.7 &&
 				(q.Confidence >= _minConfidence || IsImperativeInfoRequest(q.Text)))
 			.ToList();
 
-		if (review.Count ==0) return prelim;
+		if (review.Count == 0) return prelim;
 
 		try
 		{
@@ -218,13 +218,13 @@ public sealed class HybridQuestionDetector : IQuestionDetector
 					continue;
 
 				var id = idEl.GetInt32();
-				if (id <0 || id >= review.Count) continue;
+				if (id < 0 || id >= review.Count) continue;
 				var isQuestion = qEl.GetBoolean();
 				var original = review[id];
 				if (isQuestion)
-					original.Confidence = Math.Max(original.Confidence,0.75); // elevate to stable acceptance
+					original.Confidence = Math.Max(original.Confidence, 0.75); // elevate to stable acceptance
 				else
-					original.Confidence = Math.Min(original.Confidence,0.4); // push down ambiguous non-question
+					original.Confidence = Math.Min(original.Confidence, 0.4); // push down ambiguous non-question
 			}
 		}
 		catch (Exception ex)

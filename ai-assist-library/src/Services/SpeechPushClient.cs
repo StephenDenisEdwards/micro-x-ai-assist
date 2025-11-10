@@ -1,3 +1,4 @@
+using AiAssistLibrary.ConversationMemory;
 using AiAssistLibrary.Services.QuestionDetection;
 using AiAssistLibrary.Settings;
 using AudioCapture.Settings;
@@ -8,7 +9,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System.Diagnostics;
-using AiAssistLibrary.ConversationMemory;
 
 namespace AiAssistLibrary.Services;
 
@@ -58,7 +58,7 @@ public sealed class SpeechPushClient : IAsyncDisposable
 		if (string.IsNullOrWhiteSpace(key)) throw new InvalidOperationException("Speech key not configured.");
 		if (string.IsNullOrWhiteSpace(_opts.Region)) throw new InvalidOperationException("Speech region not configured.");
 		if (string.IsNullOrWhiteSpace(_opts.Language)) throw new InvalidOperationException("Speech recognition language not configured.");
-		if (a.TargetChannels !=1 || a.TargetBitsPerSample !=16) throw new InvalidOperationException("AudioOptions must produce16-bit mono PCM.");
+		if (a.TargetChannels != 1 || a.TargetBitsPerSample != 16) throw new InvalidOperationException("AudioOptions must produce16-bit mono PCM.");
 		var speechConfig = SpeechConfig.FromSubscription(key, _opts.Region);
 		speechConfig.SpeechRecognitionLanguage = _opts.Language;
 		speechConfig.SetProperty("SpeechServiceResponse_RequestPunctuation", "true");

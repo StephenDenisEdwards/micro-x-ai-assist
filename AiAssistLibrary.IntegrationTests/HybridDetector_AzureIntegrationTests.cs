@@ -1,8 +1,8 @@
+using AiAssistLibrary.Services.QuestionDetection; // Added for HybridQuestionDetector & DetectedQuestion
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Xunit.Abstractions;
-using AiAssistLibrary.Services.QuestionDetection; // Added for HybridQuestionDetector & DetectedQuestion
 
 namespace AiAssistLibrary.IntegrationTests;
 
@@ -104,7 +104,7 @@ public sealed class HybridDetector_AzureIntegrationTests
 		using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
 		var detector = new HybridQuestionDetector(
 			NullLogger<HybridQuestionDetector>.Instance,
-			minConfidence:0.0,
+			minConfidence: 0.0,
 			http: http,
 			endpoint: endpoint!,
 			deployment: deployment!,
