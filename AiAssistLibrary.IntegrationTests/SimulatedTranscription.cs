@@ -28,4 +28,25 @@ public static class SimulatedTranscription
 		new SimulatedUtterance("AGENT", "We can request a reset.", TimeSpan.FromSeconds(12), TimeSpan.FromSeconds(15)),
 		new SimulatedUtterance("USER", "It's urgent, okay?", TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(18)),
 	};
+
+	/// <summary>
+	/// The rule detector will fall back on low confidence for this question. It will then be sent to Azure for review.
+	/// </summary>
+	public static IReadOnlyList<SimulatedUtterance> LowConfidenceOfQuestion => new[]
+	{
+		new SimulatedUtterance("S1", "Hey, what's the weather?", TimeSpan.FromSeconds(0),
+			TimeSpan.FromSeconds(2)),
+	};
+
+
+	// Explain the difference between class and struct in C sharp.
+	public static IReadOnlyList<SimulatedUtterance> ImperativeRequests => new[]
+	{
+		new SimulatedUtterance("S1", "Explain the difference between class and struct in C sharp.", TimeSpan.FromSeconds(0),
+			TimeSpan.FromSeconds(2)),
+		new SimulatedUtterance("S1", "Explain dependency injection in .NET applications.", TimeSpan.FromSeconds(0),
+			TimeSpan.FromSeconds(2)),
+		// 
+	};
+
 }

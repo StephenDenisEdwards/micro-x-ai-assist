@@ -8,7 +8,11 @@ public sealed class RuleQuestionDetector : IQuestionDetector
 	{
 		"who", "what", "when", "where", "why", "how", "which", "whose", "whom",
 		"is", "are", "am", "was", "were", "do", "does", "did", "can", "could", "will", "would", "shall", "should",
-		"may", "might", "have", "has", "had"
+		"may", "might", "have", "has", "had",
+		// Imperative request starters that imply a question/ask
+		"explain", "describe", "tell me", "show me", "give me", "help me",
+		"please explain", "please describe", "please tell me", "please show me", "please give me", "please help me",
+		"walk me through", "please walk me through"
 	};
 
 	private static readonly Regex TagQuestionRegex = new(@"(?i)(,?\s+(isn['’]t it|doesn['’]t it|don['’]t you|right|okay|ok|no)\?)$", RegexOptions.Compiled);
@@ -43,6 +47,7 @@ public sealed class RuleQuestionDetector : IQuestionDetector
 			if (startsInterrogative) confidence += 0.25;
 			if (hasTag) confidence += 0.15;
 
+			// If it reads like a question/request but lacks a question mark, give it a baseline confidence.
 			if (!hasQuestionMark && startsInterrogative && sentence.Length < 60)
 				confidence = Math.Max(confidence, 0.5);
 

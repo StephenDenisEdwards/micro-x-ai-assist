@@ -39,6 +39,31 @@ public sealed class HybridDetector_AzureIntegrationTests
 					"It's urgent, okay?"
 				})
 		};
+
+		yield return new object[]
+		{
+			new DetectionScenario(
+				Name: "LowConfidenceOfQuestion",
+				Utterances: SimulatedTranscription.LowConfidenceOfQuestion,
+				ExpectedQuestionTexts: new []
+				{
+					"Hey, what's the weather?"
+				})
+		};
+
+		// Explain the difference between class and struct in C sharp.
+		yield return new object[]
+		{
+			new DetectionScenario(
+				Name: "ImperativeRequests",
+				Utterances: SimulatedTranscription.ImperativeRequests,
+				ExpectedQuestionTexts: new []
+				{
+					"Explain the difference between class and struct in C sharp.",
+					"Explain dependency injection in .NET applications."
+				})
+		};
+
 	}
 
 	private static (string? endpoint, string? deployment, string? key) ReadAzureOpenAI()
