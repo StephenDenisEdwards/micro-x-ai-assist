@@ -11,6 +11,36 @@ public sealed class HybridDetector_AzureIntegrationTests
 	private readonly ITestOutputHelper _output;
 	public HybridDetector_AzureIntegrationTests(ITestOutputHelper output) => _output = output;
 
+	public static IEnumerable<object[]> GetScenarios()
+	{
+		yield return new object[]
+		{
+			new DetectionScenario(
+				Name: "Standup",
+				Utterances: SimulatedTranscription.StandupSample,
+				ExpectedQuestionTexts: new []
+				{
+					"Can we finalize the sprint plan?",
+					"What are the current error rates?",
+					"How do we add tracing?",
+					"It's stable, right?"
+				})
+		};
+
+		yield return new object[]
+		{
+			new DetectionScenario(
+				Name: "SupportTicket",
+				Utterances: SimulatedTranscription.SupportTicketSample,
+				ExpectedQuestionTexts: new []
+				{
+					"Why is my account locked?",
+					"Can you unlock it now?",
+					"It's urgent, okay?"
+				})
+		};
+	}
+
 	private static (string? endpoint, string? deployment, string? key) ReadAzureOpenAI()
 	{
 		var ep = Environment.GetEnvironmentVariable("AZURE_OPENAI_ENDPOINT");
@@ -19,61 +49,47 @@ public sealed class HybridDetector_AzureIntegrationTests
 
 		if (string.IsNullOrWhiteSpace(ep) || string.IsNullOrWhiteSpace(dep) || string.IsNullOrWhiteSpace(key))
 		{
-			// Build configuration to pull from user secrets as fallback
 			var cfg = new ConfigurationBuilder()
-				.AddEnvironmentVariables() // keep precedence
+				.AddEnvironmentVariables()
 				.AddUserSecrets<HybridDetector_AzureIntegrationTests>(optional: true)
 				.Build();
 			ep = string.IsNullOrWhiteSpace(ep) ? cfg["AZURE_OPENAI_ENDPOINT"] ?? cfg["QuestionDetection:OpenAIEndpoint"] : ep;
 			dep = string.IsNullOrWhiteSpace(dep) ? cfg["AZURE_OPENAI_DEPLOYMENT"] ?? cfg["QuestionDetection:OpenAIDeployment"] : dep;
 			key = string.IsNullOrWhiteSpace(key) ? cfg["AZURE_OPENAI_API_KEY"] ?? cfg["QuestionDetection:OpenAIKey"] : key;
 		}
-
 		return (ep, dep, key);
 	}
 
-	[SkippableFact]
-	public void Classifies_With_Azure_Backend_When_Configured()
+	[SkippableTheory]
+	[MemberData(nameof(GetScenarios))]
+	public void Classifies_With_Azure_Backend_When_Configured(DetectionScenario scenario)
 	{
 		var (endpoint, deployment, key) = ReadAzureOpenAI();
-		Skip.If(
-			string.IsNullOrWhiteSpace(endpoint) || string.IsNullOrWhiteSpace(deployment) ||
-			string.IsNullOrWhiteSpace(key),
+		Skip.If(string.IsNullOrWhiteSpace(endpoint) || string.IsNullOrWhiteSpace(deployment) || string.IsNullOrWhiteSpace(key),
 			"Azure OpenAI env vars or user secrets not set.");
 
 		using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
 		var detector = new HybridQuestionDetector(
 			NullLogger<HybridQuestionDetector>.Instance,
-			minConfidence: 0.0,
+			minConfidence:0.0,
 			http: http,
 			endpoint: endpoint!,
 			deployment: deployment!,
 			apiKey: key!,
 			enableFallback: true);
 
-		// Simulated STT stream: feed utterances one by one as SpeechPushClient would on final results.
 		var questions = new List<DetectedQuestion>();
-		foreach (var u in SimulatedTranscription.StandupSample)
+		foreach (var u in scenario.Utterances)
 		{
 			var qs = detector.Detect(u.Text, u.Start, u.End, u.SpeakerId);
 			questions.AddRange(qs);
-			_output.WriteLine($"[{u.SpeakerId}] {u.Text} -> {qs.Count} detected");
+			_output.WriteLine($"[{scenario.Name}] [{u.SpeakerId}] {u.Text} -> {qs.Count} detected");
 		}
 
 		Assert.NotEmpty(questions);
-		// Expect at least the three interrogative sentences to be kept as questions
-		var expectedStarts = new[]
+		foreach (var expected in scenario.ExpectedQuestionTexts)
 		{
-			"Can we finalize the sprint plan?",
-			"What are the current error rates?",
-			"How do we add tracing?"
-		};
-		foreach (var e in expectedStarts)
-		{
-			Assert.Contains(questions, q => q.Text.Equals(e, StringComparison.OrdinalIgnoreCase));
+			Assert.Contains(questions, q => q.Text.Equals(expected, StringComparison.OrdinalIgnoreCase));
 		}
-
-		// Tag question should likely remain with confidence possibly adjusted
-		Assert.Contains(questions, q => q.Text.Equals("It's stable, right?", StringComparison.OrdinalIgnoreCase));
 	}
 }
