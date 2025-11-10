@@ -8,6 +8,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ai-assist-library", "ai-ass
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "audio-capture", "audio-capture\audio-capture.csproj", "{4246135D-E7EF-4E6B-16C9-CE170FA8627D}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AiAssistLibrary.Tests", "AiAssistLibrary.Tests\AiAssistLibrary.Tests.csproj", "{EA8FCF82-B937-99D7-7EE2-E261063340CE}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -26,6 +28,10 @@ Global
 		{4246135D-E7EF-4E6B-16C9-CE170FA8627D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{4246135D-E7EF-4E6B-16C9-CE170FA8627D}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{4246135D-E7EF-4E6B-16C9-CE170FA8627D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{EA8FCF82-B937-99D7-7EE2-E261063340CE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{EA8FCF82-B937-99D7-7EE2-E261063340CE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{EA8FCF82-B937-99D7-7EE2-E261063340CE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{EA8FCF82-B937-99D7-7EE2-E261063340CE}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
