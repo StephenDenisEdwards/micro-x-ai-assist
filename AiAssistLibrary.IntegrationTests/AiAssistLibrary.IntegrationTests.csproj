@@ -3,6 +3,7 @@
  <TargetFramework>net8.0</TargetFramework>
  <ImplicitUsings>enable</ImplicitUsings>
  <Nullable>enable</Nullable>
+ <UserSecretsId>c7703e61-34cf-44b7-b6c7-22bed810415d</UserSecretsId>
  </PropertyGroup>
  <ItemGroup>
  <PackageReference Include="xunit" Version="2.5.3" />

@@ -15,6 +15,10 @@ public sealed class HybridDetector_AzureIntegrationTests
 		var ep = Environment.GetEnvironmentVariable("AZURE_OPENAI_ENDPOINT");
 		var dep = Environment.GetEnvironmentVariable("AZURE_OPENAI_DEPLOYMENT");
 		var key = Environment.GetEnvironmentVariable("AZURE_OPENAI_API_KEY");
+
+
+
+
 		return (ep, dep, key);
 	}
 
