@@ -46,7 +46,11 @@ public static class SimulatedTranscription
 			TimeSpan.FromSeconds(2)),
 		new SimulatedUtterance("S1", "Explain dependency injection in .NET applications.", TimeSpan.FromSeconds(0),
 			TimeSpan.FromSeconds(2)),
-		// 
+		new SimulatedUtterance("S1", "Explain the difference between interface and abstract class.", TimeSpan.FromSeconds(0),
+			TimeSpan.FromSeconds(2)),
+
+
+		// Explain the difference between interface and abstract class.
 	};
 
 }

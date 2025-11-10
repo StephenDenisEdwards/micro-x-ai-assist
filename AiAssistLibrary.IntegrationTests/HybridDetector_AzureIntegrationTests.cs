@@ -60,7 +60,8 @@ public sealed class HybridDetector_AzureIntegrationTests
 				ExpectedQuestionTexts: new []
 				{
 					"Explain the difference between class and struct in C sharp.",
-					"Explain dependency injection in .NET applications."
+					"Explain dependency injection in .NET applications.",
+					"Explain the difference between interface and abstract class."
 				})
 		};
 
