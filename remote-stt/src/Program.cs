@@ -8,6 +8,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Serilog;
+using AiAssistLibrary.Extensions;
 
 var builder = Host.CreateApplicationBuilder(args);
 
@@ -29,6 +30,16 @@ builder.Services.AddHttpClient();
 builder.Services.Configure<AudioOptions>(builder.Configuration.GetSection("Audio"));
 builder.Services.Configure<SpeechOptions>(builder.Configuration.GetSection("Speech"));
 builder.Services.Configure<QuestionDetectionOptions>(builder.Configuration.GetSection("QuestionDetection"));
+
+// Conversation memory (binds from configuration; generates a SessionId if missing)
+builder.Services.AddConversationMemory(o =>
+{
+	builder.Configuration.GetSection("ConversationMemory").Bind(o);
+	if (string.IsNullOrWhiteSpace(o.SessionId))
+	{
+		o.SessionId = $"session-{DateTimeOffset.UtcNow:yyyyMMdd-HHmmss}";
+	}
+});
 
 // Audio capture services
 builder.Services.AddSingleton<AudioDeviceSelector>();

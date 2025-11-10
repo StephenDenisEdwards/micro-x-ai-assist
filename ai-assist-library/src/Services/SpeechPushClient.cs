@@ -139,9 +139,9 @@ public sealed class SpeechPushClient : IAsyncDisposable
 		var arr = pcm16Mono.ToArray();
 		_pushStream.Write(arr);
 		Interlocked.Add(ref _bytesPushedThisSecond, arr.Length);
-		if (_meterSw.ElapsedMilliseconds >=1000)
+		if (_meterSw.ElapsedMilliseconds >= 1000)
 		{
-			var bps = Interlocked.Exchange(ref _bytesPushedThisSecond,0);
+			var bps = Interlocked.Exchange(ref _bytesPushedThisSecond, 0);
 			_log.LogDebug("{Tag} PushStream: wrote {Bps} B/s to Azure", _channelTag, bps);
 			_meterSw.Restart();
 		}
@@ -157,6 +157,7 @@ public sealed class SpeechPushClient : IAsyncDisposable
 		{
 			var pack = await _promptBuilder.BuildAsync(actText, nowMs);
 			PromptPackReady?.Invoke(pack);
+			LogPromptPackToConsole(pack, source: "MANUAL");
 		}
 	}
 
@@ -182,6 +183,7 @@ public sealed class SpeechPushClient : IAsyncDisposable
 					{
 						var pack = await _promptBuilder.BuildAsync(q.Text, nowMs);
 						PromptPackReady?.Invoke(pack);
+						LogPromptPackToConsole(pack, source: mode);
 					}
 				}
 			}
@@ -190,5 +192,59 @@ public sealed class SpeechPushClient : IAsyncDisposable
 		{
 			_log.LogError(ex, "{Tag} detection failed.", _channelTag);
 		}
+	}
+
+	private void LogPromptPackToConsole(PromptPack pack, string source)
+	{
+		// Verbose console dump of assembled conversation memory context.
+		Console.ForegroundColor = ConsoleColor.Cyan;
+		Console.WriteLine($"----- Prompt Pack ({source}) -----");
+		Console.ResetColor();
+
+		Console.WriteLine("SYSTEM:");
+		Console.WriteLine(pack.SystemPrompt);
+		Console.WriteLine();
+
+		Console.WriteLine("recent_finals:");
+		if (pack.RecentFinals.Count == 0) Console.WriteLine("- (none)");
+		foreach (var f in pack.RecentFinals)
+			Console.WriteLine($"- [{f.Speaker} {Fmt(f.T0)}] {Trunc(f.Text, 160)}");
+		Console.WriteLine();
+
+		Console.WriteLine("recent_acts (Q/A):");
+		if (pack.RecentActs.Count == 0) Console.WriteLine("- (none)");
+		foreach (var (act, ans) in pack.RecentActs)
+		{
+			var prefix = act.Text.StartsWith("IMP", StringComparison.OrdinalIgnoreCase) ? "IMP" : "Q";
+			var ansStr = ans is null ? "(no answer)" : $"{ans.Speaker}: {Trunc(ans.Text, 160)}";
+			Console.WriteLine($"- {prefix}: \"{Trunc(act.Text, 180)}\" A: {ansStr}");
+		}
+		Console.WriteLine();
+
+		if (pack.OpenActs.Count > 0)
+		{
+			Console.WriteLine("open_items:");
+			foreach (var o in pack.OpenActs)
+				Console.WriteLine($"- IMP: \"{Trunc(o.Text, 160)}\"");
+			Console.WriteLine();
+		}
+
+		Console.ForegroundColor = ConsoleColor.Magenta;
+		Console.WriteLine("question:");
+		Console.WriteLine($"\"{pack.NewActText}\"");
+		Console.ResetColor();
+		Console.WriteLine();
+
+		Console.WriteLine("assembled_prompt (raw block sent to model):");
+		Console.WriteLine(pack.AssembledPrompt.TrimEnd());
+		Console.WriteLine("----- End Prompt Pack -----");
+		Console.WriteLine();
+	}
+
+	private static string Trunc(string t, int m) => t.Length <= m ? t : t.Substring(0, m) + "…";
+	private static string Fmt(double ms)
+	{
+		var ts = TimeSpan.FromMilliseconds(ms);
+		return $"{(int)ts.TotalHours:00}:{ts.Minutes:00}:{ts.Seconds:00}";
 	}
 }
