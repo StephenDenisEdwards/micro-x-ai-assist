@@ -18,13 +18,7 @@ public sealed class HybridDetector_AzureIntegrationTests
 			new DetectionScenario(
 				Name: "Standup",
 				Utterances: SimulatedTranscription.StandupSample,
-				ExpectedQuestionTexts: new []
-				{
-					"Can we finalize the sprint plan?",
-					"What are the current error rates?",
-					"How do we add tracing?",
-					"It's stable, right?"
-				})
+				ExpectedQuestionTexts: SimulatedTranscription.StandupExpectedQuestions)
 		};
 
 		yield return new object[]
@@ -32,12 +26,7 @@ public sealed class HybridDetector_AzureIntegrationTests
 			new DetectionScenario(
 				Name: "SupportTicket",
 				Utterances: SimulatedTranscription.SupportTicketSample,
-				ExpectedQuestionTexts: new []
-				{
-					"Why is my account locked?",
-					"Can you unlock it now?",
-					"It's urgent, okay?"
-				})
+				ExpectedQuestionTexts: SimulatedTranscription.SupportTicketExpectedQuestions)
 		};
 
 		yield return new object[]
@@ -45,10 +34,7 @@ public sealed class HybridDetector_AzureIntegrationTests
 			new DetectionScenario(
 				Name: "LowConfidenceOfQuestion",
 				Utterances: SimulatedTranscription.LowConfidenceOfQuestion,
-				ExpectedQuestionTexts: new []
-				{
-					"Hey, what's the weather?"
-				})
+				ExpectedQuestionTexts: SimulatedTranscription.LowConfidenceOfQuestionExpectedQuestions)
 		};
 
 		// Explain the difference between class and struct in C sharp.
@@ -57,12 +43,16 @@ public sealed class HybridDetector_AzureIntegrationTests
 			new DetectionScenario(
 				Name: "ImperativeRequests",
 				Utterances: SimulatedTranscription.ImperativeRequests,
-				ExpectedQuestionTexts: new []
-				{
-					"Explain the difference between class and struct in C sharp.",
-					"Explain dependency injection in .NET applications.",
-					"Explain the difference between interface and abstract class."
-				})
+				ExpectedQuestionTexts: SimulatedTranscription.ImperativeRequestsExpectedQuestions)
+		};
+
+		// Extended coding imperatives
+		yield return new object[]
+		{
+			new DetectionScenario(
+				Name: "ImperativeCodingRequests",
+				Utterances: SimulatedTranscription.ImperativeCodingRequests,
+				ExpectedQuestionTexts: SimulatedTranscription.ImperativeCodingRequestsExpectedQuestions)
 		};
 
 	}
