@@ -29,7 +29,7 @@ public sealed class PromptPackBuilder
 		}
 		var trimmed = pairs.Take(3).ToList();
 		var open = await _memory.GetOpenActsAsync(nowMs);
-		var systemPrompt = "Answer in1–2 sentences +1 short follow-up. Use ONLY provided snippets.";
+		var systemPrompt = "Answer in 1–2 sentences + 1 short follow-up. Use ONLY provided snippets.";
 		var sb = new StringBuilder();
 		sb.AppendLine(systemPrompt);
 		sb.AppendLine();
