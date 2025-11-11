@@ -1,11 +1,5 @@
 namespace AiAssistLibrary.LLM;
 
-public enum LlmApiMode
-{
-	Responses,
-	Chat
-}
-
 public sealed class OpenAIOptions
 {
 	public string? Endpoint { get; set; }
