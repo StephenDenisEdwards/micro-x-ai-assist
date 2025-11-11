@@ -41,6 +41,9 @@ builder.Services.AddConversationMemory(o =>
 	}
 });
 
+// AI answering (LLM + pipeline) using config + env fallbacks
+builder.Services.AddAnswering(builder.Configuration);
+
 // Audio capture services
 builder.Services.AddSingleton<AudioDeviceSelector>();
 builder.Services.AddSingleton<LoopbackSource>();

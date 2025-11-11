@@ -9,6 +9,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System.Diagnostics;
+using AiAssistLibrary.LLM; // added
 
 namespace AiAssistLibrary.Services;
 
@@ -29,6 +30,8 @@ public sealed class SpeechPushClient : IAsyncDisposable
 	private readonly HttpClient _httpClient;
 	private readonly ConversationMemoryClient? _memory;
 	private readonly PromptPackBuilder? _promptBuilder;
+	private readonly AnswerPipeline? _answerPipeline; // pipeline injected
+	private readonly OpenAIOptions? _openAIOptions; // capture opts for logging
 
 	public event Action<DetectedQuestion>? QuestionDetected;
 	public event Action<PromptPack>? PromptPackReady; // new: fires when act detected and prompt pack assembled
@@ -42,7 +45,9 @@ public sealed class SpeechPushClient : IAsyncDisposable
 		IOptions<AudioOptions> audioOpts,
 		IOptions<QuestionDetectionOptions> qdOpts,
 		IOptions<ConversationMemoryOptions> memoryOpts,
-		IServiceProvider services)
+		IServiceProvider services,
+		AnswerPipeline? answerPipeline = null,
+		IOptions<OpenAIOptions>? openAIOpts = null) // optional to avoid forcing dependency
 	{
 		_log = log;
 		_opts = opts.Value;
@@ -51,6 +56,18 @@ public sealed class SpeechPushClient : IAsyncDisposable
 		_httpClient = services.GetRequiredService<HttpClient>();
 		_memory = services.GetService<ConversationMemoryClient>();
 		if (_memory != null) _promptBuilder = new PromptPackBuilder(_memory);
+		_answerPipeline = answerPipeline; // direct injection instead of resolving later
+		_openAIOptions = openAIOpts?.Value;
+
+		if (_answerPipeline == null)
+		{
+			_log.LogInformation("AnswerPipeline not available; acts will not be auto-answered.");
+		}
+		else
+		{
+			_log.LogInformation("AnswerPipeline active. Endpoint={Endpoint} Deployment={Deployment} EntraId={Entra}", _openAIOptions?.Endpoint ?? "(none)", _openAIOptions?.Deployment ?? "(none)", _openAIOptions?.UseEntraId);
+		}
+
 		var a = audioOpts.Value;
 		var key = string.IsNullOrWhiteSpace(_opts.Key)
 			? Environment.GetEnvironmentVariable("AZURE_SPEECH_KEY")
@@ -58,7 +75,7 @@ public sealed class SpeechPushClient : IAsyncDisposable
 		if (string.IsNullOrWhiteSpace(key)) throw new InvalidOperationException("Speech key not configured.");
 		if (string.IsNullOrWhiteSpace(_opts.Region)) throw new InvalidOperationException("Speech region not configured.");
 		if (string.IsNullOrWhiteSpace(_opts.Language)) throw new InvalidOperationException("Speech recognition language not configured.");
-		if (a.TargetChannels != 1 || a.TargetBitsPerSample != 16) throw new InvalidOperationException("AudioOptions must produce16-bit mono PCM.");
+		if (a.TargetChannels !=1 || a.TargetBitsPerSample !=16) throw new InvalidOperationException("AudioOptions must produce16-bit mono PCM.");
 		var speechConfig = SpeechConfig.FromSubscription(key, _opts.Region);
 		speechConfig.SpeechRecognitionLanguage = _opts.Language;
 		speechConfig.SetProperty("SpeechServiceResponse_RequestPunctuation", "true");
@@ -139,9 +156,9 @@ public sealed class SpeechPushClient : IAsyncDisposable
 		var arr = pcm16Mono.ToArray();
 		_pushStream.Write(arr);
 		Interlocked.Add(ref _bytesPushedThisSecond, arr.Length);
-		if (_meterSw.ElapsedMilliseconds >= 1000)
+		if (_meterSw.ElapsedMilliseconds >=1000)
 		{
-			var bps = Interlocked.Exchange(ref _bytesPushedThisSecond, 0);
+			var bps = Interlocked.Exchange(ref _bytesPushedThisSecond,0);
 			_log.LogDebug("{Tag} PushStream: wrote {Bps} B/s to Azure", _channelTag, bps);
 			_meterSw.Restart();
 		}
@@ -158,6 +175,11 @@ public sealed class SpeechPushClient : IAsyncDisposable
 			var pack = await _promptBuilder.BuildAsync(actText, nowMs);
 			PromptPackReady?.Invoke(pack);
 			LogPromptPackToConsole(pack, source: "MANUAL");
+			if (_answerPipeline != null)
+			{
+				_log.LogInformation("Invoking AnswerPipeline for manual act (id={ActId}).", act.Id);
+				await _answerPipeline.AnswerAndPersistAsync(pack, speakerForAnswer: "assistant", actId: act.Id);
+			}
 		}
 	}
 
@@ -184,6 +206,15 @@ public sealed class SpeechPushClient : IAsyncDisposable
 						var pack = await _promptBuilder.BuildAsync(q.Text, nowMs);
 						PromptPackReady?.Invoke(pack);
 						LogPromptPackToConsole(pack, source: mode);
+						if (_answerPipeline != null)
+						{
+							_log.LogInformation("Invoking AnswerPipeline for detected act (id={ActId}).", act.Id);
+							await _answerPipeline.AnswerAndPersistAsync(pack, speakerForAnswer: "assistant", actId: act.Id);
+						}
+						else
+						{
+							_log.LogDebug("AnswerPipeline null; skipping auto-answer.");
+						}
 					}
 				}
 			}
@@ -206,26 +237,26 @@ public sealed class SpeechPushClient : IAsyncDisposable
 		Console.WriteLine();
 
 		Console.WriteLine("recent_finals:");
-		if (pack.RecentFinals.Count == 0) Console.WriteLine("- (none)");
+		if (pack.RecentFinals.Count ==0) Console.WriteLine("- (none)");
 		foreach (var f in pack.RecentFinals)
-			Console.WriteLine($"- [{f.Speaker} {Fmt(f.T0)}] {Trunc(f.Text, 160)}");
+			Console.WriteLine($"- [{f.Speaker} {Fmt(f.T0)}] {Trunc(f.Text,160)}");
 		Console.WriteLine();
 
 		Console.WriteLine("recent_acts (Q/A):");
-		if (pack.RecentActs.Count == 0) Console.WriteLine("- (none)");
+		if (pack.RecentActs.Count ==0) Console.WriteLine("- (none)");
 		foreach (var (act, ans) in pack.RecentActs)
 		{
 			var prefix = act.Text.StartsWith("IMP", StringComparison.OrdinalIgnoreCase) ? "IMP" : "Q";
-			var ansStr = ans is null ? "(no answer)" : $"{ans.Speaker}: {Trunc(ans.Text, 160)}";
-			Console.WriteLine($"- {prefix}: \"{Trunc(act.Text, 180)}\" A: {ansStr}");
+			var ansStr = ans is null ? "(no answer)" : $"{ans.Speaker}: {Trunc(ans.Text,160)}";
+			Console.WriteLine($"- {prefix}: \"{Trunc(act.Text,180)}\" A: {ansStr}");
 		}
 		Console.WriteLine();
 
-		if (pack.OpenActs.Count > 0)
+		if (pack.OpenActs.Count >0)
 		{
 			Console.WriteLine("open_items:");
 			foreach (var o in pack.OpenActs)
-				Console.WriteLine($"- IMP: \"{Trunc(o.Text, 160)}\"");
+				Console.WriteLine($"- IMP: \"{Trunc(o.Text,160)}\"");
 			Console.WriteLine();
 		}
 

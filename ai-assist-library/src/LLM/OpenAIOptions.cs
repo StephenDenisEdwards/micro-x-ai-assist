@@ -1,0 +1,10 @@
+namespace AiAssistLibrary.LLM;
+
+public sealed class OpenAIOptions
+{
+	public string? Endpoint { get; set; }
+	public string? ApiKey { get; set; }
+	public string? Deployment { get; set; }
+	public bool UseEntraId { get; set; } = false;
+	// Allow overriding model per-request by name, but keep default Deployment for fallback
+}

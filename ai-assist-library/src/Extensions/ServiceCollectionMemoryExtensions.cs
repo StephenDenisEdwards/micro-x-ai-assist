@@ -22,6 +22,15 @@ public static class ServiceCollectionMemoryExtensions
 					opts.SearchAdminKey = env;
 				}
 			}
+			// Fallback for endpoint
+			if (string.IsNullOrWhiteSpace(opts.SearchEndpoint))
+			{
+				var envEndpoint = Environment.GetEnvironmentVariable("AZURE_SEARCH_ENDPOINT");
+				if (!string.IsNullOrWhiteSpace(envEndpoint))
+				{
+					opts.SearchEndpoint = envEndpoint;
+				}
+			}
 			return new ConversationMemoryClient(opts);
 		});
 		return services;
