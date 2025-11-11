@@ -1,4 +1,6 @@
+using AiAssistLibrary.ConversationMemory;
 using AiAssistLibrary.Extensions;
+using AiAssistLibrary.LLM;
 using AiAssistLibrary.Services;
 using AiAssistLibrary.Settings;
 using AudioCapture.Services;
@@ -42,7 +44,35 @@ builder.Services.AddConversationMemory(o =>
 });
 
 // AI answering (LLM + pipeline) using config + env fallbacks
-builder.Services.AddAnswering(builder.Configuration);
+builder.Services.AddAnswering(builder.Configuration, opts =>
+{
+	// Allow selecting API mode from config/env
+	var modeStr = builder.Configuration["OpenAI:Mode"];
+	if (!string.IsNullOrWhiteSpace(modeStr) && Enum.TryParse<LlmApiMode>(modeStr, true, out var parsed))
+	{
+		opts.Mode = parsed;
+	}
+});
+
+// Select PromptPackBuilder in Program setup (can override default mapping)
+var promptPref = builder.Configuration["OpenAI:PromptBuilder"]; // "Chat" or "Responses"
+if (!string.IsNullOrWhiteSpace(promptPref) && promptPref.Equals("Chat", StringComparison.OrdinalIgnoreCase))
+{
+	builder.Services.AddSingleton<IPromptPackBuilder, ChatPromptPackBuilder>();
+}
+else if (!string.IsNullOrWhiteSpace(promptPref) && promptPref.Equals("Responses", StringComparison.OrdinalIgnoreCase))
+{
+	builder.Services.AddSingleton<IPromptPackBuilder, PromptPackBuilder>();
+}
+else
+{
+	// Default: map to API mode
+	var modeStr = builder.Configuration["OpenAI:Mode"] ?? "Responses";
+	if (Enum.TryParse<LlmApiMode>(modeStr, true, out var mode) && mode == LlmApiMode.Chat)
+		builder.Services.AddSingleton<IPromptPackBuilder, ChatPromptPackBuilder>();
+	else
+		builder.Services.AddSingleton<IPromptPackBuilder, PromptPackBuilder>();
+}
 
 // Audio capture services
 builder.Services.AddSingleton<AudioDeviceSelector>();

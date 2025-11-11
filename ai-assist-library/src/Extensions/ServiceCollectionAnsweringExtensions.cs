@@ -23,6 +23,10 @@ public static class ServiceCollectionAnsweringExtensions
 		{
 			options.UseEntraId = useEntra;
 		}
+		if (Enum.TryParse(Environment.GetEnvironmentVariable("AZURE_OPENAI_MODE"), ignoreCase:true, out LlmApiMode mode))
+		{
+			options.Mode = mode;
+		}
 
 		configure?.Invoke(options);
 
@@ -33,8 +37,17 @@ public static class ServiceCollectionAnsweringExtensions
 			o.Deployment = options.Deployment;
 			o.UseEntraId = options.UseEntraId;
 		});
-		services.AddSingleton(options); // for AzureOpenAIAnswerProvider
-		services.AddSingleton<IAnswerProvider, AzureOpenAIAnswerProvider>();
+		services.AddSingleton(options); // for provider selection
+
+		// Register provider based on mode
+		if (options.Mode == LlmApiMode.Chat)
+		{
+			services.AddSingleton<IAnswerProvider, AzureOpenAIChatAnswerProvider>();
+		}
+		else
+		{
+			services.AddSingleton<IAnswerProvider, AzureOpenAIResponseAnswerProvider>();
+		}
 		services.AddSingleton<AnswerPipeline>();
 		return services;
 	}

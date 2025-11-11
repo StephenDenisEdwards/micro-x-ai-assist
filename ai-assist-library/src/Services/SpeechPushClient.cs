@@ -29,7 +29,7 @@ public sealed class SpeechPushClient : IAsyncDisposable
 	private readonly ILogger<HybridQuestionDetector>? _hybridLog;
 	private readonly HttpClient _httpClient;
 	private readonly ConversationMemoryClient? _memory;
-	private readonly PromptPackBuilder? _promptBuilder;
+	private readonly IPromptPackBuilder? _promptBuilder;
 	private readonly AnswerPipeline? _answerPipeline; // pipeline injected
 	private readonly OpenAIOptions? _openAIOptions; // capture opts for logging
 
@@ -55,7 +55,7 @@ public sealed class SpeechPushClient : IAsyncDisposable
 		_hybridLog = services.GetService(typeof(ILogger<HybridQuestionDetector>)) as ILogger<HybridQuestionDetector>;
 		_httpClient = services.GetRequiredService<HttpClient>();
 		_memory = services.GetService<ConversationMemoryClient>();
-		if (_memory != null) _promptBuilder = new PromptPackBuilder(_memory);
+		_promptBuilder = services.GetService<IPromptPackBuilder>() ?? (_memory != null ? new PromptPackBuilder(_memory) : null);
 		_answerPipeline = answerPipeline; // direct injection instead of resolving later
 		_openAIOptions = openAIOpts?.Value;
 
@@ -65,7 +65,7 @@ public sealed class SpeechPushClient : IAsyncDisposable
 		}
 		else
 		{
-			_log.LogInformation("AnswerPipeline active. Endpoint={Endpoint} Deployment={Deployment} EntraId={Entra}", _openAIOptions?.Endpoint ?? "(none)", _openAIOptions?.Deployment ?? "(none)", _openAIOptions?.UseEntraId);
+			_log.LogInformation("AnswerPipeline active. Endpoint={Endpoint} Deployment={Deployment} EntraId={Entra} Mode={Mode}", _openAIOptions?.Endpoint ?? "(none)", _openAIOptions?.Deployment ?? "(none)", _openAIOptions?.UseEntraId, _openAIOptions?.Mode.ToString());
 		}
 
 		var a = audioOpts.Value;

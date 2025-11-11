@@ -20,7 +20,7 @@ public sealed class AnswerPipeline
 	// Handles PromptPack, sends to LLM, writes answer, and optionally upserts to memory using provided actId
 	public async Task<string> AnswerAndPersistAsync(PromptPack pack, string? speakerForAnswer = "assistant", string? actId = null)
 	{
-		var answer = await _answer.GetAnswerAsync(pack.AssembledPrompt);
+		var answer = await _answer.GetAnswerAsync(pack);
 		Console.ForegroundColor = ConsoleColor.DarkCyan;
 		Console.WriteLine($"AI: {answer}");
 		Console.ResetColor();
