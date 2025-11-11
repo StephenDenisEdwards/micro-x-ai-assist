@@ -121,8 +121,8 @@ setx AZURE_SPEECH_KEY "<your-speech-key>"
 When enabled, `SpeechPushClient` detects questions/imperatives (acts), builds a prompt pack from recent context stored in Azure AI Search, sends it to the LLM, and upserts the answer linked to the originating act (`parentActId`).
 
 - Memory: Azure AI Search single-index PoC (`conv_items`)
-- LLM: Azure OpenAI via `ChatClient`
-- Answering: `AnswerPipeline` + `AzureOpenAIAnswerProvider`
+- LLM: Azure OpenAI via selected API Mode (`Responses` by default, or `Chat`)
+- Answering: `AnswerPipeline` + provider chosen by `OpenAI:Mode` (`AzureOpenAIResponseAnswerProvider` or `AzureOpenAIChatAnswerProvider`)
 
 Wire-up in your host (`Program.cs`):
 
@@ -138,7 +138,7 @@ builder.Services.AddConversationMemory(o =>
  // o.SearchAdminKey = "<admin-key>";
 });
 
-// Registers ChatClient, AnswerPipeline, and IAnswerProvider using config + env fallbacks
+// Registers Azure OpenAI client, AnswerPipeline, and IAnswerProvider using config + env fallbacks
 builder.Services.AddAnswering(builder.Configuration);
 ```
 
@@ -169,7 +169,8 @@ Store secrets at the `remote-stt` project level (this project has its own `UserS
  "Endpoint": "https://YOUR-AOAI.openai.azure.com",
  "ApiKey": "YOUR_AZURE_OPENAI_KEY",
  "Deployment": "gpt-4o-mini",
- "UseEntraId": false
+ "UseEntraId": false,
+ "Mode": "Responses"
  },
  "QuestionDetection": {
  "Enabled": true,
@@ -183,12 +184,13 @@ Store secrets at the `remote-stt` project level (this project has its own `UserS
 ```
 
 Environment variable fallbacks (optional)
-- Azure OpenAI: `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_DEPLOYMENT`, `AZURE_OPENAI_USE_ENTRAID`
+- Azure OpenAI: `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_DEPLOYMENT`, `AZURE_OPENAI_USE_ENTRAID`, `AZURE_OPENAI_MODE`
 - Azure AI Search: `AZURE_SEARCH_ENDPOINT`, `AZURE_SEARCH_ADMIN_KEY`
 - Azure Speech: `AZURE_SPEECH_KEY`
 
 Notes
 - Set `OpenAI:UseEntraId` to `true` to authenticate with Microsoft Entra ID instead of an API key.
+- Set `OpenAI:Mode` to `Chat` to use the Chat Completions API; default is `Responses`.
 - Answers are automatically upserted to conversation memory with `parentActId` when `SpeechPushClient` detects an act and the answer pipeline is enabled.
 
 

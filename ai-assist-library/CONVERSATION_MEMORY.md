@@ -39,7 +39,7 @@ Behavior
  - Open items: acts without a linked answer in the last window (20m).
 - Prompt pack
  - Format:
- - system: "Answer in1–2 sentences +1 short follow-up. Use ONLY provided snippets."
+ - system: "Answer in 1–2 sentences + 1 short follow-up. Use ONLY provided snippets."
  - `recent_finals`, `recent_acts` (Q/A pairs), `open_items` (if any), and the new `question`.
 
 How to enable in your host (example)
@@ -83,6 +83,7 @@ Notes
 - Timestamps `t0/t1` are in milliseconds.
 - One index keeps PoC simple and supports finals, acts, answers via `kind` + `parentActId`.
 - Safe to run without OpenAI dependencies; Search index is created automatically if missing.
+- Answer generation uses the selected API mode (`Responses` default; switch via `OpenAI:Mode` or `AZURE_OPENAI_MODE`).
 
 Potential improvements
 - Switch related-acts to hybrid (keyword + vector).
@@ -95,42 +96,41 @@ Potential improvements
 The prompt pack consolidates minimal, high-signal context for answering a newly detected act (question or imperative). Fields:
 
 - system
-  - Fixed instruction string currently: `Answer in 1–2 sentences + 1 short follow-up. Use ONLY provided snippets.`
-  - Sent as a system message to the model (or prefixed at the top of a single user message).
+ - Fixed instruction string currently: `Answer in 1–2 sentences + 1 short follow-up. Use ONLY provided snippets.`
+ - Sent as a system message to the model (or prefixed at the top of a single user message).
 
 - recent_finals
-  - Definition: The most recent finalized transcript turns within the last 40 seconds for the current session.
-  - Source query: `kind='final' AND sessionId=<session> AND t0 >= now-40s`, ordered ascending by `t0`, top 4.
-  - Formatting: Each line `- [<speaker> HH:MM:SS] <text>` where `HH:MM:SS` is `t0` formatted, and `text` truncated to 180 characters with an ellipsis (`…`) if longer.
-  - Purpose: Provides raw factual snippets the answer must constrain itself to.
+ - Definition: The most recent finalized transcript turns within the last 40 seconds for the current session.
+ - Source query: `kind='final' AND sessionId=<session> AND t0 >= now-40s`, ordered ascending by `t0`, top 4.
+ - Formatting: Each line `- [<speaker> HH:MM:SS] <text>` where `HH:MM:SS` is `t0` formatted, and `text` truncated to 180 characters with an ellipsis (`…`) if longer.
+ - Purpose: Provides raw factual snippets the answer must constrain itself to.
 
 - recent_acts
-  - Definition: Up to three previously detected acts that are related to the new act, each paired with its latest answer if one exists.
-  - Source query: lexical search over `text` for similarity to the new act in the last 20 minutes:
-    - `kind='act' AND t0 >= now-20m`, search term = new act text, top 5 acts (chronological ascending), then builder takes the first 3.
-    - For each act, a secondary query obtains the latest answer: `kind='answer' AND parentActId=<actId>` ordered by `t0 DESC` top 1.
-  - Formatting line: `- Q|IMP: "<actText>" A: (no answer | <answerSpeaker>: <answerText>)`
-    - Prefix `IMP` if the act text starts with "IMP" (case-insensitive), otherwise `Q`.
-    - Act text truncated to 200 chars; answer text truncated to 180 chars.
-  - Purpose: Supplies historical Q/A pairs to avoid duplication and allow follow-up continuity.
+ - Definition: Up to three previously detected acts that are related to the new act, each paired with its latest answer if one exists.
+ - Source query: lexical search over `text` for similarity to the new act in the last 20 minutes:
+ - `kind='act' AND t0 >= now-20m`, search term = new act text, top 5 acts (chronological ascending), then builder takes the first 3.
+ - For each act, a secondary query obtains the latest answer: `kind='answer' AND parentActId=<actId>` ordered by `t0 DESC` top 1.
+ - Formatting line: `- Q|IMP: "<actText>" A: (no answer | <answerSpeaker>: <answerText>)`
+ - Prefix `IMP` if the act text starts with "IMP" (case-insensitive), otherwise `Q`.
+ - Act text truncated to 200 chars; answer text truncated to 180 chars.
+ - Purpose: Supplies historical Q/A pairs to avoid duplication and allow follow-up continuity.
 
 - open_items
-  - Definition: Outstanding (unanswered) acts still within the 20-minute consideration window.
-  - Source query: acts with no associated answer where `kind='act' AND t0 >= now-20m` and no matching `answer` exists.
-  - Formatting: Each line `- IMP: "<actText>"` with the text truncated to 180 chars (acts presented as imperatives/questions uniformly).
-  - Purpose: Lets the model choose a helpful follow-up that nudges resolution of pending items.
+ - Definition: Outstanding (unanswered) acts still within the 20-minute consideration window.
+ - Source query: acts with no associated answer where `kind='act' AND t0 >= now-20m` and no matching `answer` exists.
+ - Formatting: Each line `- IMP: "<actText>"` with the text truncated to 180 chars (acts presented as imperatives/questions uniformly).
+ - Purpose: Lets the model choose a helpful follow-up that nudges resolution of pending items.
 
 - question
-  - Definition: The newly detected act text you are asking the model to answer now.
-  - Formatting: Quoted on its own line after the `question:` label.
-  - Purpose: Primary target for the model’s concise answer.
+ - Definition: The newly detected act text you are asking the model to answer now.
+ - Formatting: Quoted on its own line after the `question:` label.
+ - Purpose: Primary target for the model’s concise answer.
 
 Truncation & Timestamp Helpers (from `PromptPackBuilder`)
 - `Trunc(string t, int m)`: keeps length ≤ m, else appends `…`.
 - Time formatting: `Fmt(double ms)` => `HH:MM:SS` using `TimeSpan.FromMilliseconds(t0)`.
 
 Example (schematic):
-
 
 
 

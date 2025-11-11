@@ -71,8 +71,9 @@ OpenAI:Endpoint (string, e.g. https://YOUR.openai.azure.com)
 OpenAI:ApiKey (string, or AZURE_OPENAI_API_KEY env)
 OpenAI:Deployment (string, model deployment name)
 OpenAI:UseEntraId (bool, default false; set true to use DefaultAzureCredential)
+OpenAI:Mode (string, default "Responses"; one of "Responses" or "Chat")
 ```
-`UseEntraId=true` switches to token-based auth (Managed Identity / developer login). Ensure your identity has appropriate RBAC (e.g., Cognitive Services OpenAI User).
+`UseEntraId=true` switches to token-based auth (Managed Identity / developer login). Ensure your identity has appropriate RBAC (e.g., Cognitive Services OpenAI User). `Mode` selects which Azure OpenAI API surface the library uses via `LlmApiMode`.
 
 ### Environment Variable Fallbacks
 ```
@@ -83,18 +84,19 @@ AZURE_OPENAI_ENDPOINT
 AZURE_OPENAI_API_KEY
 AZURE_OPENAI_DEPLOYMENT
 AZURE_OPENAI_USE_ENTRAID (true/false)
+AZURE_OPENAI_MODE (Responses|Chat)
 ```
 
 ## Services / DI Extensions
 - `AddConversationMemory` – registers `ConversationMemoryClient` with endpoint/admin key fallbacks.
-- `AddAnswering` – binds `OpenAIOptions`, registers `ChatClient`, `IAnswerProvider`, and `AnswerPipeline`.
+- `AddAnswering` – binds `OpenAIOptions`, registers the Azure OpenAI client, selects `IAnswerProvider` based on `OpenAI:Mode` (`AzureOpenAIResponseAnswerProvider` or `AzureOpenAIChatAnswerProvider`), and wires `AnswerPipeline`.
 - `SpeechPushClient` – when question detection fires, upserts an act, builds a prompt pack, invokes the answer pipeline, and persists the answer (with `parentActId`).
 
 ## Answer Flow
 1. Speech final result arrives -> stored as `final`.
 2. Text triggers detection -> upsert `act`.
 3. Prompt pack assembled from memory.
-4. `AnswerPipeline` sends pack to Azure OpenAI (`UserChatMessage` containing the full assembled block).
+4. `AnswerPipeline` sends the assembled pack to Azure OpenAI using the selected API mode (Responses or Chat).
 5. Answer returned -> printed to console (host responsibility) -> upserted as `answer` referencing the act ID.
 
 ## secrets.json Example
@@ -118,7 +120,8 @@ For a host project (e.g., remote-stt) using this library:
  "Endpoint": "https://YOUR-AOAI.openai.azure.com",
  "ApiKey": "YOUR_AZURE_OPENAI_KEY",
  "Deployment": "gpt-4o-mini",
- "UseEntraId": false
+ "UseEntraId": false,
+ "Mode": "Responses"
  },
  "QuestionDetection": {
  "Enabled": true,
@@ -127,6 +130,10 @@ For a host project (e.g., remote-stt) using this library:
  }
 }
 ```
+
+## Selecting API Mode
+- Default is `Responses` (new Azure OpenAI Responses API).
+- Set `OpenAI:Mode` to `Chat` or environment `AZURE_OPENAI_MODE=Chat` to use the Chat Completions provider.
 
 ## Switching Models Per Request
 Call `IAnswerProvider.GetAnswerAsync(prompt, overrideModel: "another-deployment")` for an override. Default deployment comes from `OpenAI:Deployment`.
