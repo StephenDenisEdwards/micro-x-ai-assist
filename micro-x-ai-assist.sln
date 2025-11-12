@@ -12,6 +12,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AiAssistLibrary.Tests", "Ai
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AiAssistLibrary.IntegrationTests", "AiAssistLibrary.IntegrationTests\AiAssistLibrary.IntegrationTests.csproj", "{C40231F6-6B55-A5A4-6773-0E305169903F}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "documentation", "documentation\documentation.csproj", "{3CBFF5BD-CA7D-4823-A4BB-4E6D4E8E39F5}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -38,6 +40,10 @@ Global
 		{C40231F6-6B55-A5A4-6773-0E305169903F}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{C40231F6-6B55-A5A4-6773-0E305169903F}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{C40231F6-6B55-A5A4-6773-0E305169903F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3CBFF5BD-CA7D-4823-A4BB-4E6D4E8E39F5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3CBFF5BD-CA7D-4823-A4BB-4E6D4E8E39F5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3CBFF5BD-CA7D-4823-A4BB-4E6D4E8E39F5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3CBFF5BD-CA7D-4823-A4BB-4E6D4E8E39F5}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
