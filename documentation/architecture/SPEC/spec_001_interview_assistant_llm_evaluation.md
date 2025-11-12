@@ -1,3 +1,7 @@
+NOTE: This is a spec suggested by an AI rather than my detailed specification
+
+
+
 # SPEC-001-Interview Assistant LLM Evaluation
 
 ## Background
