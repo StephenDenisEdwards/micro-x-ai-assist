@@ -20,6 +20,8 @@ public sealed class ResponsePromptPackBuilder : IPromptPackBuilder
 		var trimmed = pairs.Take(3).ToList();
 		var open = await _memory.GetOpenActsAsync(nowMs);
 		var systemPrompt = @"You are an answer engine.
+- If in doubt, all questions relate to .NET and C# (C Sharp) 
+- There will be no questions relating to C. Treat these as referring to C# (C Sharp). 
 - Answer in 1-3 sentences.
 - Use concise, technically precise language.
 - Do not ask follow-up questions.

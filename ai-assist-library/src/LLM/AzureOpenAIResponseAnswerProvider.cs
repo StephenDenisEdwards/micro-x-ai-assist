@@ -1,20 +1,25 @@
+#pragma warning disable OPENAI001
 using Microsoft.Extensions.Logging;
+using OpenAI;
 using OpenAI.Chat;
 using OpenAI.Responses;
+using System.ClientModel;
+using System.ClientModel.Primitives;
+using Azure.Identity;
 using AiAssistLibrary.ConversationMemory;
 
 namespace AiAssistLibrary.LLM;
 
 public sealed class AzureOpenAIResponseAnswerProvider : IAnswerProvider
 {
-	private readonly ChatClient _defaultChat;
+	//private readonly ChatClient _defaultChat;
 	private readonly OpenAIOptions _opts;
 	private readonly ILogger<AzureOpenAIResponseAnswerProvider> _log;
 	private readonly ConversationMemoryClient? _memory;
 
 	public AzureOpenAIResponseAnswerProvider(ChatClient chat, OpenAIOptions opts, ILogger<AzureOpenAIResponseAnswerProvider> log, ConversationMemoryClient? memory)
 	{
-		_defaultChat = chat;
+		//_defaultChat = chat;
 		_opts = opts;
 		_log = log;
 		_memory = memory;
@@ -30,26 +35,43 @@ public sealed class AzureOpenAIResponseAnswerProvider : IAnswerProvider
 			return string.Empty;
 		}
 
-		// Suppress OPENAI001 diagnostics on experimental Responses API types
-#pragma warning disable OPENAI001
+		// Build OpenAI Responses client targeting Azure OpenAI endpoint
 		OpenAIResponseClient responsesClient;
-#pragma warning restore OPENAI001
 		try
 		{
-			var endpoint = _opts.Endpoint!;
-			if (_opts.UseEntraId)
+			var endpoint = _opts.Endpoint!; // expected like https://<resource>.openai.azure.com
+			var baseUrl = endpoint.TrimEnd('/');
+			if (!baseUrl.EndsWith("/openai/v1", StringComparison.OrdinalIgnoreCase))
 			{
-				var azureClient = new Azure.AI.OpenAI.AzureOpenAIClient(new Uri(endpoint), new Azure.Identity.DefaultAzureCredential());
-#pragma warning disable OPENAI001
-				responsesClient = azureClient.GetOpenAIResponseClient(deploymentToUse);
-#pragma warning restore OPENAI001
+				baseUrl = baseUrl + "/openai/v1/";
 			}
 			else
 			{
-				var azureClient = new Azure.AI.OpenAI.AzureOpenAIClient(new Uri(endpoint), new Azure.AzureKeyCredential(_opts.ApiKey!));
-#pragma warning disable OPENAI001
-				responsesClient = azureClient.GetOpenAIResponseClient(deploymentToUse);
-#pragma warning restore OPENAI001
+				// ensure trailing slash
+				if (!baseUrl.EndsWith("/")) baseUrl += "/";
+			}
+
+			var clientOptions = new OpenAIClientOptions
+			{
+				
+				Endpoint = new Uri(baseUrl)
+			};
+
+			if (_opts.UseEntraId)
+			{
+				var tokenPolicy = new BearerTokenPolicy(new DefaultAzureCredential(), "https://cognitiveservices.azure.com/.default");
+				responsesClient = new OpenAIResponseClient(
+					model: deploymentToUse!,
+					authenticationPolicy: tokenPolicy,
+					options: clientOptions);
+			}
+			else
+			{
+				var key = _opts.ApiKey!;
+				responsesClient = new OpenAIResponseClient(
+					model: deploymentToUse,
+					credential: new ApiKeyCredential(key),
+					options: clientOptions);
 			}
 		}
 		catch (Exception ex)
@@ -58,21 +80,22 @@ public sealed class AzureOpenAIResponseAnswerProvider : IAnswerProvider
 			return string.Empty;
 		}
 
-#pragma warning disable OPENAI001
 		OpenAIResponse response;
-#pragma warning restore OPENAI001
 		try
 		{
-#pragma warning disable OPENAI001
 			response = await responsesClient.CreateResponseAsync(
-				userInputText: pack.AssembledPrompt,
+				//userInputText: "What is the difference between a class and a struct in C#?", //pack.NewActText,  //pack.AssembledPrompt,
+				userInputText: pack.NewActText,  
 				new ResponseCreationOptions
 				{
 					//Temperature =0.2f,
-					MaxOutputTokenCount =512
+					//Instructions = "The question will be one about .NET and C#.",
+					// Explicitly guide the model to produce text output
+					Instructions = string.IsNullOrWhiteSpace(pack.SystemPrompt) ? null : pack.SystemPrompt,
+
+					MaxOutputTokenCount = 512
 				},
 				ct);
-#pragma warning restore OPENAI001
 		}
 		catch (Exception ex)
 		{
@@ -80,10 +103,9 @@ public sealed class AzureOpenAIResponseAnswerProvider : IAnswerProvider
 			return string.Empty;
 		}
 
-#pragma warning disable OPENAI001
 		var text = response.GetOutputText();
-#pragma warning restore OPENAI001
 		_log.LogDebug("LLM answer length: {Len}", text?.Length ??0);
 		return text ?? string.Empty;
 	}
 }
+#pragma warning restore OPENAI001

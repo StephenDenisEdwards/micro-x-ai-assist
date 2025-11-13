@@ -1,9 +1,11 @@
 using AiAssistLibrary.LLM;
-using Azure;
-using Azure.AI.OpenAI;
 using Azure.Identity;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using OpenAI;
+using OpenAI.Chat;
+using System.ClientModel;
+using System.ClientModel.Primitives;
 
 namespace AiAssistLibrary.Extensions;
 
@@ -21,14 +23,43 @@ public static class ServiceCollectionOpenAIExtensions
 			if (string.IsNullOrWhiteSpace(o.Deployment))
 				throw new InvalidOperationException("OpenAIOptions.Deployment is required.");
 
-			AzureOpenAIClient azureClient = o.UseEntraId
-				? new AzureOpenAIClient(new Uri(o.Endpoint!), new DefaultAzureCredential())
-				: new AzureOpenAIClient(new Uri(o.Endpoint!),
-					new AzureKeyCredential(o.ApiKey ??
-										   throw new InvalidOperationException(
-											   "OpenAIOptions.ApiKey is required when UseEntraId=false.")));
+			// Ensure Azure OpenAI base URL conforms to OpenAI v1 format
+			var baseUrl = o.Endpoint!.TrimEnd('/');
+			if (!baseUrl.EndsWith("/openai/v1", StringComparison.OrdinalIgnoreCase))
+			{
+				baseUrl = baseUrl + "/openai/v1/";
+			}
+			else
+			{
+				if (!baseUrl.EndsWith("/")) baseUrl += "/";
+			}
 
-			return azureClient.GetChatClient(o.Deployment!);
+			var options = new OpenAIClientOptions
+			{
+				Endpoint = new Uri(baseUrl)
+			};
+
+			ChatClient client;
+#pragma warning disable OPENAI001
+			if (o.UseEntraId)
+			{
+				var tokenPolicy = new BearerTokenPolicy(new DefaultAzureCredential(), "https://cognitiveservices.azure.com/.default");
+				client = new ChatClient(
+					model: o.Deployment!,
+					authenticationPolicy: tokenPolicy,
+					options: options);
+			}
+			else
+			{
+				var apiKey = o.ApiKey ?? throw new InvalidOperationException("OpenAIOptions.ApiKey is required when UseEntraId=false.");
+				client = new ChatClient(
+					model: o.Deployment!,
+					credential: new ApiKeyCredential(apiKey),
+					options: options);
+			}
+#pragma warning restore OPENAI001
+
+			return client;
 		});
 
 		return services;
