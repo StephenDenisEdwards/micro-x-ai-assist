@@ -90,7 +90,5 @@ This design ensures sub-second response times and supports scalable, stateless p
 
 **Approved by:**  
 - Stephen Edwards – Product Architect  
-- Jim Taliadoros – Lead Developer  
-- Manuel Hassler – AI Systems Advisor  
 
 ---

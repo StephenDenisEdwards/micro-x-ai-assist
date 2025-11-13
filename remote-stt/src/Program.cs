@@ -54,7 +54,7 @@ builder.Services.AddAnswering(builder.Configuration, opts =>
 	}
 });
 
-// Select PromptPackBuilder in Program setup (can override default mapping)
+// Select ResponsePromptPackBuilder in Program setup (can override default mapping)
 var promptPref = builder.Configuration["OpenAI:PromptBuilder"]; // "Chat" or "Responses"
 if (!string.IsNullOrWhiteSpace(promptPref) && promptPref.Equals("Chat", StringComparison.OrdinalIgnoreCase))
 {
@@ -62,7 +62,7 @@ if (!string.IsNullOrWhiteSpace(promptPref) && promptPref.Equals("Chat", StringCo
 }
 else if (!string.IsNullOrWhiteSpace(promptPref) && promptPref.Equals("Responses", StringComparison.OrdinalIgnoreCase))
 {
-	builder.Services.AddSingleton<IPromptPackBuilder, PromptPackBuilder>();
+	builder.Services.AddSingleton<IPromptPackBuilder, ResponsePromptPackBuilder>();
 }
 else
 {
@@ -71,7 +71,7 @@ else
 	if (Enum.TryParse<LlmApiMode>(modeStr, true, out var mode) && mode == LlmApiMode.Chat)
 		builder.Services.AddSingleton<IPromptPackBuilder, ChatPromptPackBuilder>();
 	else
-		builder.Services.AddSingleton<IPromptPackBuilder, PromptPackBuilder>();
+		builder.Services.AddSingleton<IPromptPackBuilder, ResponsePromptPackBuilder>();
 }
 
 // Audio capture services
