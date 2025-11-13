@@ -91,6 +91,22 @@ var app = builder.Build();
 
 var logger = app.Services.GetRequiredService<ILogger<Program>>();
 
+// Optional clearing of conversation memory at startup
+try
+{
+	var memOpts = app.Services.GetRequiredService<IOptions<ConversationMemoryOptions>>().Value;
+	if (memOpts.Enabled && memOpts.ClearSessionOnStart)
+	{
+		var memClient = app.Services.GetRequiredService<ConversationMemoryClient>();
+		await memClient.ClearSessionAsync();
+		logger.LogInformation("Conversation memory cleared for session {SessionId}", memOpts.SessionId);
+	}
+}
+catch (Exception ex)
+{
+	logger.LogWarning(ex, "Failed to clear conversation memory at startup");
+}
+
 // Validate speech key from configuration (User Secrets) with env var fallback
 var speechOpts = app.Services.GetRequiredService<IOptions<SpeechOptions>>().Value;
 var speechKey = string.IsNullOrWhiteSpace(speechOpts.Key)

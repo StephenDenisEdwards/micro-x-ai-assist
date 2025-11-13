@@ -25,6 +25,21 @@ public sealed class ConversationMemoryClient
 		_dims = opts.EmbeddingDimensions;
 	}
 
+	// Clear all documents for the current session (used at startup if option set)
+	public async Task ClearSessionAsync()
+	{
+		if (!_opts.Enabled || _searchClient is null) return;
+		await EnsureIndexAsync();
+		// Use search + batch delete (no direct session purge API)
+		var filter = $"sessionId eq '{Escape(_opts.SessionId)}'";
+		var options = new SearchOptions { Filter = filter, Size = 500 }; // batch size
+		var results = await _searchClient.SearchAsync<ConversationItem>("*", options);
+		var toDelete = new List<ConversationItem>();
+		await foreach (var r in results.Value.GetResultsAsync()) toDelete.Add(r.Document);
+		if (toDelete.Count == 0) return;
+		await _searchClient.DeleteDocumentsAsync(toDelete.Select(d => new { id = d.Id }));
+	}
+
 	private async Task EnsureIndexAsync()
 	{
 		if (_indexClient is null) return;

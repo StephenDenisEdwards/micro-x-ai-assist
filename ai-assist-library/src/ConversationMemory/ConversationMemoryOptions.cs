@@ -11,4 +11,5 @@ public sealed class ConversationMemoryOptions
 	public string? OpenAIKey { get; set; }
 	public string? EmbeddingDeployment { get; set; } // e.g. text-embedding-3-small
 	public int EmbeddingDimensions { get; set; } = 1536;
+	public bool ClearSessionOnStart { get; set; } = false; // New option: if true, will delete all documents for the current SessionId at startup
 }
