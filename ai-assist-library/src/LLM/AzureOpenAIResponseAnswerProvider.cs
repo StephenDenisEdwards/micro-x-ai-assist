@@ -17,7 +17,7 @@ public sealed class AzureOpenAIResponseAnswerProvider : IAnswerProvider
 	private readonly ILogger<AzureOpenAIResponseAnswerProvider> _log;
 	private readonly ConversationMemoryClient? _memory;
 
-	public AzureOpenAIResponseAnswerProvider(ChatClient chat, OpenAIOptions opts, ILogger<AzureOpenAIResponseAnswerProvider> log, ConversationMemoryClient? memory)
+	public AzureOpenAIResponseAnswerProvider(OpenAIOptions opts, ILogger<AzureOpenAIResponseAnswerProvider> log, ConversationMemoryClient? memory)
 	{
 		//_defaultChat = chat;
 		_opts = opts;

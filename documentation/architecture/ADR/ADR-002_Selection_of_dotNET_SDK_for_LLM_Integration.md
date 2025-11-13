@@ -150,6 +150,25 @@ The public `OpenAI` SDK does **not** support Azure deployments.
 
 ---
 
+## **9. Technical Note: Prerelease `Azure.AI.OpenAI` Usage**
+
+We intentionally use a prerelease version of `Azure.AI.OpenAI` (e.g., `2.x.y-beta`) because:
+
+* The Azure OpenAI **Responses API** surface (`AzureOpenAIClient.GetOpenAIResponseClient`, `OpenAI.Responses.*`) is currently available only in prerelease builds; stable packages (e.g., `2.1.x`) do not expose these types.
+* Our architecture decision mandates the Responses API for low-latency, stateful interactions (streaming, tools), so prerelease is required to meet functional and latency goals.
+
+Risk mitigation and governance:
+
+* Pin the exact prerelease version in the solution to avoid accidental upgrades.
+* Suppress the temporary SDK analyzer warning `OPENAI001` where necessary and document it in code.
+* Encapsulate SDK usage behind `IAnswerProvider` to isolate potential breaking changes.
+* Maintain a contingency path (Azure REST Responses endpoint or Chat Completions) to unblock incidents.
+* Track Azure GA status and plan migration to the next stable `Azure.AI.OpenAI` once Responses GA is announced (remove warning suppressions, run regression tests).
+
+This approach aligns with enterprise policy (Azure-first, AAD auth, private networking) while enabling the required product capabilities today.
+
+---
+
 If you'd like, I can also generate the corresponding **SAD entry**, a **code implementation snippet**, or an **ADR PDF** ready for repository upload.
 
 
