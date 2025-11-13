@@ -1,4 +1,4 @@
-using AiAssistLibrary.ConversationMemory;
+using AiAssistLibrary.ConversationMemory; // for ConversationMemoryOptions / Client
 using AiAssistLibrary.Extensions;
 using AiAssistLibrary.LLM;
 using AiAssistLibrary.Services;
@@ -11,6 +11,19 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Serilog;
+using System.CommandLine;
+
+// Define command line option to override memory clearing
+//var clearSessionOpt = new Option<bool?>("--clear-session", "Override ConversationMemory:ClearSessionOnStart (true/false)");
+
+Option<bool> clearSessionOpt = new("--clear-session")
+{
+	Description = "Override ConversationMemory:ClearSessionOnStart (true/false)"
+};
+
+var rootCmd = new RootCommand { clearSessionOpt };
+var parseResult = rootCmd.Parse(args);
+var clearOverride = parseResult.GetValue(clearSessionOpt);
 
 var builder = Host.CreateApplicationBuilder(args);
 
@@ -40,6 +53,11 @@ builder.Services.AddConversationMemory(o =>
 	if (string.IsNullOrWhiteSpace(o.SessionId))
 	{
 		o.SessionId = $"session-{DateTimeOffset.UtcNow:yyyyMMdd-HHmmss}";
+	}
+	// Apply command line override if provided
+	if (clearOverride)
+	{
+		o.ClearSessionOnStart = clearOverride;
 	}
 });
 
@@ -100,6 +118,10 @@ try
 		var memClient = app.Services.GetRequiredService<ConversationMemoryClient>();
 		await memClient.ClearSessionAsync();
 		logger.LogInformation("Conversation memory cleared for session {SessionId}", memOpts.SessionId);
+	}
+	else if (clearOverride)
+	{
+		logger.LogInformation("ClearSessionOnStart overridden to {Value} via command line", clearOverride);
 	}
 }
 catch (Exception ex)
