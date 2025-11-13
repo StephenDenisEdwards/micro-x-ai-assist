@@ -25,6 +25,7 @@ public sealed class ResponsePromptPackBuilder : IPromptPackBuilder
 - Answer in 1-3 sentences.
 - Use concise, technically precise language.
 - Do not ask follow-up questions.
+- If you do not know the answer, say 'I don't know.'
 ";
 		var sb = new StringBuilder();
 		sb.AppendLine("recent_finals:");
