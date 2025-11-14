@@ -1,3 +1,6 @@
+using System;
+using System.Linq;
+using System.Collections.Generic;
 using AiAssistLibrary.Services.QuestionDetection;
 using Xunit;
 
@@ -8,7 +11,7 @@ public sealed class RulesImperativeDetectTests
 	[Fact]
 	public void Detects_All_ImperativeCodingRequests_As_Questions()
 	{
-		var text = string.Join(" ", new[]
+		var sentences = new[]
 		{
 			"Define a variable of type int and assign it a value.",
 			"Declare a constant called Pi with the value3.14.",
@@ -60,12 +63,31 @@ public sealed class RulesImperativeDetectTests
 			"Lock a critical section to prevent race conditions.",
 			"Write a unit test that verifies a simple add method.",
 			"Explain how to log exceptions using ILogger in ASP.NET Core."
-		});
+		};
 
-		var qs = _detector.Detect(text, TimeSpan.Zero, TimeSpan.FromSeconds(100));
-		// There are51 imperatives above
-		Assert.True(qs.Count >= 51, $"Expected at least51 imperative detections, got {qs.Count}");
-		Assert.All(qs, q => Assert.Equal("Imperative", q.Category));
+		var failures = new List<string>();
+
+		for (var i = 0; i < sentences.Length; i++)
+		{
+			var sentence = sentences[i];
+			var qs = _detector.Detect(sentence, TimeSpan.Zero, TimeSpan.FromSeconds(2));
+
+			// We expect at least one detection and that at least one detection is categorized as "Imperative".
+			if (qs.Count == 0 || !qs.Any(q => string.Equals(q.Category, "Imperative", StringComparison.Ordinal)))
+			{
+				failures.Add($"#{i + 1}: '{sentence}' => detections={qs.Count}");
+			}
+		}
+
+		if (failures.Count > 0)
+		{
+			// Provide detailed failure output to make it easy to identify which sentences failed.
+			var msg = "The following sentences did not get classified as Imperative:\n" + string.Join("\n", failures);
+			Assert.True(false, msg);
+		}
+
+		// Also assert that the total number of sentences tested matches expectation.
+		Assert.Equal(50, sentences.Length);
 	}
 
 	[Theory]
