@@ -2,6 +2,7 @@
 using Microsoft.Extensions.Logging;
 using OpenAI.Responses;
 using AiAssistLibrary.ConversationMemory;
+using Microsoft.VisualBasic;
 
 namespace AiAssistLibrary.LLM;
 
@@ -30,9 +31,16 @@ public sealed class AzureOpenAIResponseAnswerProvider : IAnswerProvider
 				MaxOutputTokenCount = 512
 			};
 
+			var lastFinal = pack.RecentFinals.LastOrDefault();
+
+			var question = lastFinal?.Text + " " + pack.NewActText;
+
+			Console.ForegroundColor = ConsoleColor.Yellow;
+			Console.WriteLine($@"Question to LLM: {question}");
+			Console.ResetColor();
 #pragma warning disable OPENAI001
 			var result = await _responsesClient.CreateResponseAsync(
-				userInputText: pack.NewActText,
+				userInputText: question,
 				options,
 				ct);
 			var text = result.Value.GetOutputText();

@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Text.RegularExpressions;
 
 namespace AiAssistLibrary.Services.QuestionDetection;
@@ -14,6 +15,10 @@ public sealed class RulesImperativeDetect : IQuestionDetector
 		"help me", "walk me through", "please explain", "please describe", "please tell me", "please show me",
 		"please give me", "please help me", "please walk me through"
 	};
+
+	// Matches any starter at the beginning of the sentence with a word-boundary so punctuation or end-of-sentence is accepted.
+	private static readonly Regex ImperativeStartersRegex =
+		new(@"^(?:" + string.Join("|", ImperativeStarters.Select(Regex.Escape)) + @")\b", RegexOptions.Compiled);
 
 	private static readonly Regex SentenceSplitRegex = new(@"(?<=[\.!?])\s+", RegexOptions.Compiled);
 
@@ -38,13 +43,11 @@ public sealed class RulesImperativeDetect : IQuestionDetector
 
 			var lower = sentence.ToLowerInvariant();
 			bool isImperative = false;
-			foreach (var starter in ImperativeStarters)
+
+			// Use a single compiled regex to detect any starter at the start of the sentence
+			if (ImperativeStartersRegex.IsMatch(lower))
 			{
-				if (lower.StartsWith(starter + " "))
-				{
-					isImperative = true;
-					break;
-				}
+				isImperative = true;
 			}
 
 			// Additional heuristic: sentences starting with verbs followed by "a"/"an"/"the" are often imperatives in docs (e.g., "Create a method ...").

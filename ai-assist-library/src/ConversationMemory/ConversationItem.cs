@@ -14,10 +14,3 @@ public sealed class ConversationItem
 	[JsonPropertyName("text")] public string Text { get; set; } = default!;
 	[JsonPropertyName("textVector")] public float[]? TextVector { get; set; }
 }
-
-public static class ConversationKinds
-{
-	public const string Final = "final";
-	public const string Act = "act";
-	public const string Answer = "answer";
-}

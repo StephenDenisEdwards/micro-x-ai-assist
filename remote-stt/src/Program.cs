@@ -61,6 +61,9 @@ builder.Services.AddConversationMemory(o =>
 	}
 });
 
+builder.Services.AddSingleton<IConversationMemoryReader>(sp =>
+    new ConversationMemoryClientReaderAdapter(sp.GetRequiredService<ConversationMemoryClient>()));
+
 // AI answering (LLM + pipeline) using config + env fallbacks
 builder.Services.AddAnswering(builder.Configuration, opts =>
 {

@@ -55,7 +55,7 @@ public sealed class SpeechPushClient : IAsyncDisposable
 		_hybridLog = services.GetService(typeof(ILogger<HybridQuestionDetector>)) as ILogger<HybridQuestionDetector>;
 		_httpClient = services.GetRequiredService<HttpClient>();
 		_memory = services.GetService<ConversationMemoryClient>();
-		_promptBuilder = services.GetService<IPromptPackBuilder>() ?? (_memory != null ? new ResponsePromptPackBuilder(_memory) : null);
+		_promptBuilder = services.GetService<IPromptPackBuilder>() ?? (_memory != null ? new ResponsePromptPackBuilder(new ConversationMemoryClientReaderAdapter(_memory)) : null);
 		_answerPipeline = answerPipeline; // direct injection instead of resolving later
 		_openAIOptions = openAIOpts?.Value;
 
@@ -172,7 +172,7 @@ public sealed class SpeechPushClient : IAsyncDisposable
 		var act = await _memory.UpsertActAsync(speaker, actText, nowMs, nowMs);
 		if (act != null)
 		{
-			var pack = await _promptBuilder.BuildAsync(actText, nowMs);
+			var pack = await _promptBuilder.BuildAsync(speaker, actText, nowMs);
 			PromptPackReady?.Invoke(pack);
 			LogPromptPackToConsole(pack, source: "MANUAL");
 			if (_answerPipeline != null)
@@ -203,7 +203,7 @@ public sealed class SpeechPushClient : IAsyncDisposable
 					var act = await _memory.UpsertActAsync(speakerId ?? "?", q.Text, nowMs, nowMs);
 					if (act != null)
 					{
-						var pack = await _promptBuilder.BuildAsync(q.Text, nowMs);
+						var pack = await _promptBuilder.BuildAsync(text, q.Text, nowMs);
 						PromptPackReady?.Invoke(pack);
 						LogPromptPackToConsole(pack, source: mode);
 						if (_answerPipeline != null)
