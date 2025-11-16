@@ -200,4 +200,15 @@ public static class SimulatedTranscription
 
 	public static IReadOnlyList<string> CSharpImperativeExpectedQuestions =>
 		CSharpImperativeCommands.Select(u => u.Text).ToArray();
+
+	// New: GC tuning performance scenario with preamble + interrogative
+	public static IReadOnlyList<SimulatedUtterance> GcTuningPerformanceSample => new[]
+	{
+		new SimulatedUtterance("S1", "*This application allocates millions of short-lived objects per second. How would you tune garbage collection for better performance?", TimeSpan.FromSeconds(0), TimeSpan.FromSeconds(5))
+	};
+
+	public static IReadOnlyList<string> GcTuningPerformanceExpectedQuestions => new[]
+	{
+		"How would you tune garbage collection for better performance?"
+	};
 }

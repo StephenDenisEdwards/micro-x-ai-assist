@@ -125,4 +125,36 @@ public sealed class HybridDetector_AzureIntegrationTests
 			Assert.Contains(questions, q => q.Text.Equals(expected, StringComparison.OrdinalIgnoreCase));
 		}
 	}
+
+	[SkippableFact]
+	public void Classifies_GcTuningPerformance_AsQuestion_With_Azure()
+	{
+		var (endpoint, deployment, key) = ReadAzureOpenAI();
+		Skip.If(string.IsNullOrWhiteSpace(endpoint) || string.IsNullOrWhiteSpace(deployment) || string.IsNullOrWhiteSpace(key),
+			"Azure OpenAI env vars or user secrets not set.");
+
+		using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+		var detector = new HybridQuestionDetector(
+			NullLogger<HybridQuestionDetector>.Instance,
+			minConfidence: 0.0,
+			http: http,
+			endpoint: endpoint!,
+			deployment: deployment!,
+			apiKey: key!,
+			enableFallback: true);
+
+		var questions = new List<DetectedQuestion>();
+		foreach (var u in SimulatedTranscription.GcTuningPerformanceSample)
+		{
+			var qs = detector.Detect(u.Text, u.Start, u.End, u.SpeakerId);
+			questions.AddRange(qs);
+			_output.WriteLine($"[GcTuningPerformance] [{u.SpeakerId}] {u.Text} -> {qs.Count} detected");
+		}
+
+		Assert.NotEmpty(questions);
+		foreach (var expected in SimulatedTranscription.GcTuningPerformanceExpectedQuestions)
+		{
+			Assert.Contains(questions, q => q.Text.Equals(expected, StringComparison.OrdinalIgnoreCase));
+		}
+	}
 }

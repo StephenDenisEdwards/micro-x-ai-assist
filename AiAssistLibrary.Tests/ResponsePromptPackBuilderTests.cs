@@ -39,7 +39,29 @@ public sealed class ResponsePromptPackBuilderTests
         TextVector = null
     };
 
+
     [Fact]
+    public async Task If_Question_Is_Not_In_Final() // 
+    {
+        var question = "How would you tune garbage collection for better performance?";
+        var finals = new List<ConversationItem>
+        {
+            Item("f1","final","Some context before."),
+            Item("f2","final","This application allocates millions of short lived objects per second. " + question)
+        };
+        var expectedFinals = new List<ConversationItem>
+        {
+	        Item("f1","final","Some context before."),
+	        Item("f2","final","This application allocates millions of short lived objects per second.")
+        };
+		var reader = new FakeMemoryReader { Finals = finals };
+        var builder = new ResponsePromptPackBuilder(reader);
+        var pack = await builder.BuildAsync(fullFinal: finals.Last().Text, newActText: question, nowMs: 4000);
+        Assert.Equal(expectedFinals, pack.RecentFinals); // same references
+	}
+	
+
+	[Fact]
     public async Task Removes_Question_Text_From_Latest_Final_Containing_It()
     {
         var question = "How do I parse JSON?";
@@ -129,5 +151,46 @@ public sealed class ResponsePromptPackBuilderTests
         Assert.Contains("question:", pack.AssembledPrompt);
         Assert.Equal(ResponsePromptPackBuilder.DefaultSystemPrompt, pack.SystemPrompt);
         Assert.Equal("Explain dependency injection", pack.NewActText);
+    }
+
+    // Direct unit tests for the public static method (now requiring fullFinal)
+    [Fact]
+    public void EnsureFinalContainsQuestionPreamble_Where_Preamble_And_Question_Are_FullFinal()
+    {
+        var question = "How would you tune garbage collection for better performance?";
+        var preamble = "This application allocates millions of short lived objects per second.";
+        var fullFinal = $"{preamble} How would you tune garbage collection for better performance?";
+		var finals = new List<ConversationItem>
+        {
+            Item("f1","final","Some previous question and answer."),
+            Item("f2","final","And some more irrelevant crap."),
+            Item("f3","final","And yet more irrelevant crap.")
+
+		} as IReadOnlyList<ConversationItem>;
+
+        var adjustedFinals = ResponsePromptPackBuilder.EnsureFinalContainsQuestionPreamble(finals, question, fullFinal);
+
+        Assert.Equal(4, adjustedFinals.Count);
+
+        Assert.Same(finals[0], adjustedFinals[0]);
+        Assert.Same(finals[1], adjustedFinals[1]);
+        Assert.Same(finals[2], adjustedFinals[2]);
+        Assert.Equal(preamble, adjustedFinals[3].Text);
+    }
+    [Fact]
+    public void EnsureFinalContainsQuestionPreamble_Where_Preamble_And_Question_Are_FullFinal_And_No_Existing_Finals()
+    {
+	    var question = "How would you tune garbage collection for better performance?";
+	    var preamble = "This application allocates millions of short lived objects per second.";
+	    var fullFinal = $"{preamble} How would you tune garbage collection for better performance?";
+	    var finals = new List<ConversationItem>
+	    {
+	    } as IReadOnlyList<ConversationItem>;
+
+	    var adjustedFinals = ResponsePromptPackBuilder.EnsureFinalContainsQuestionPreamble(finals, question, fullFinal);
+
+	    Assert.Equal(1, adjustedFinals.Count);
+
+	    Assert.Equal(preamble, adjustedFinals[0].Text);
     }
 }

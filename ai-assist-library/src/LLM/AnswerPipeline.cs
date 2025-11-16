@@ -1,6 +1,7 @@
+using System;
+using System.Threading.Tasks;
 using AiAssistLibrary.ConversationMemory;
 using Microsoft.Extensions.Logging;
-using System;
 
 namespace AiAssistLibrary.LLM;
 
@@ -10,7 +11,7 @@ public sealed class AnswerPipeline
 	private readonly ConversationMemoryClient? _memory;
 	private readonly ILogger<AnswerPipeline> _log;
 
-	public AnswerPipeline(IAnswerProvider answer, ConversationMemoryClient? memory, ILogger<AnswerPipeline> log)
+	public AnswerPipeline(IAnswerProvider answer, ILogger<AnswerPipeline> log, ConversationMemoryClient? memory = null)
 	{
 		_answer = answer;
 		_memory = memory;
@@ -40,3 +41,4 @@ public sealed class AnswerPipeline
 		return answer;
 	}
 }
+		
