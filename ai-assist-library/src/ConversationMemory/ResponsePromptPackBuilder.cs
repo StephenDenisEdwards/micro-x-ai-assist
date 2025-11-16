@@ -174,39 +174,6 @@ Answer ONLY the CURRENT_QUERY.
 		return finalsList;
 	}
 
-
-
-	internal static IReadOnlyList<ConversationItem> EnsureFinalContainsQuestionPreamble_OLD(IReadOnlyList<ConversationItem> finals, string question, string fullFinal)
-	{
-		if (finals is null || finals.Count == 0 || string.IsNullOrWhiteSpace(question)) return finals;
-		// fullFinal parameter is available for future logic adjustments; current behavior scans latest-to-oldest.
-		for (int i = finals.Count - 1; i >= 0; i--)
-		{
-			var f = finals[i];
-			var text = f.Text ?? string.Empty;
-			var pos = text.IndexOf(question, StringComparison.OrdinalIgnoreCase);
-			if (pos >= 0)
-			{
-				var newText = RemoveFirstOccurrenceIgnoreCase(text, question).Trim();
-				var adjusted = new ConversationItem
-				{
-					Id = f.Id,
-					SessionId = f.SessionId,
-					T0 = f.T0,
-					T1 = f.T1,
-					Speaker = f.Speaker,
-					Kind = f.Kind,
-					ParentActId = f.ParentActId,
-					Text = newText,
-					TextVector = f.TextVector
-				};
-				var list = new List<ConversationItem>(finals) { [i] = adjusted };
-				return list;
-			}
-		}
-		return finals;
-	}
-
 	internal static string RemoveFirstOccurrenceIgnoreCase(string source, string value)
 	{
 		if (string.IsNullOrEmpty(source) || string.IsNullOrEmpty(value)) return source;
