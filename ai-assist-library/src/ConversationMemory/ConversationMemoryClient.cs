@@ -160,7 +160,10 @@ public sealed class ConversationMemoryClient
 	{
 		if (!_opts.Enabled || _searchClient is null) return null;
 		var filter = $"sessionId eq '{Escape(_opts.SessionId)}' and kind eq 'answer' and parentActId eq '{Escape(actId)}'";
-		var options = new SearchOptions { Filter = filter, OrderBy = { "t0 desc" }, Size = 1 };
+		var options = new SearchOptions();
+		options.Filter = filter;
+		options.Size = 1;
+		options.OrderBy.Add("t0 desc");
 		var results = await _searchClient.SearchAsync<ConversationItem>("*", options);
 		await foreach (var r in results.Value.GetResultsAsync()) return r.Document;
 		return null;
@@ -182,6 +185,34 @@ public sealed class ConversationMemoryClient
 			if (ans == null) open.Add(act);
 		}
 		return open.OrderBy(a => a.T0).ToList();
+	}
+
+	// Get all session items optionally filtered by kind (final | act | answer)
+	public async Task<IReadOnlyList<ConversationItem>> GetAllSessionItemsAsync(string? kind = null, int pageSize = 1000)
+	{
+		if (!_opts.Enabled || _searchClient is null) return Array.Empty<ConversationItem>();
+		await EnsureIndexAsync();
+		var filter = $"sessionId eq '{Escape(_opts.SessionId)}'";
+		if (!string.IsNullOrWhiteSpace(kind)) filter += $" and kind eq '{Escape(kind)}'";
+		var options = new SearchOptions { Filter = filter, Size = pageSize };
+		options.OrderBy.Add("t0 asc");
+		var results = await _searchClient.SearchAsync<ConversationItem>("*", options);
+		var list = new List<ConversationItem>();
+		await foreach (var r in results.Value.GetResultsAsync()) list.Add(r.Document);
+		return list;
+	}
+
+	// Stream session items for large histories
+	public async IAsyncEnumerable<ConversationItem> StreamSessionItemsAsync(string? kind = null, int pageSize = 500)
+	{
+		if (!_opts.Enabled || _searchClient is null) yield break;
+		await EnsureIndexAsync();
+		var filter = $"sessionId eq '{Escape(_opts.SessionId)}'";
+		if (!string.IsNullOrWhiteSpace(kind)) filter += $" and kind eq '{Escape(kind)}'";
+		var options = new SearchOptions { Filter = filter, Size = pageSize };
+		options.OrderBy.Add("t0 asc");
+		var results = await _searchClient.SearchAsync<ConversationItem>("*", options);
+		await foreach (var r in results.Value.GetResultsAsync()) yield return r.Document;
 	}
 
 	private static string Escape(string s) => s.Replace("'", "''");

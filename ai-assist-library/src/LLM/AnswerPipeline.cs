@@ -22,7 +22,7 @@ public sealed class AnswerPipeline
 	public async Task<string> AnswerAndPersistAsync(PromptPack pack, string? speakerForAnswer = "assistant", string? actId = null)
 	{
 		var answer = await _answer.GetAnswerAsync(pack);
-		Console.ForegroundColor = ConsoleColor.DarkCyan;
+		Console.ForegroundColor = ConsoleColor.Yellow;
 		Console.WriteLine($"AI: {answer}");
 		Console.ResetColor();
 

@@ -12,18 +12,27 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Serilog;
 using System.CommandLine;
+using System.Linq;
 
-// Define command line option to override memory clearing
-//var clearSessionOpt = new Option<bool?>("--clear-session", "Override ConversationMemory:ClearSessionOnStart (true/false)");
-
+// Define command line options
 Option<bool> clearSessionOpt = new("--clear-session")
 {
 	Description = "Override ConversationMemory:ClearSessionOnStart (true/false)"
 };
+Option<bool> dumpMemoryOpt = new("--dump-memory")
+{
+	Description = "Dump all conversation memory items for the current session to console"
+};
+Option<string?> dumpKindOpt = new("--dump-kind")
+{
+	Description = "Optional kind filter for dump (final | act | answer)"
+};
 
-var rootCmd = new RootCommand { clearSessionOpt };
+var rootCmd = new RootCommand { clearSessionOpt, dumpMemoryOpt, dumpKindOpt };
 var parseResult = rootCmd.Parse(args);
 var clearOverride = parseResult.GetValue(clearSessionOpt);
+var dumpMemory = parseResult.GetValue(dumpMemoryOpt);
+var dumpKind = parseResult.GetValue(dumpKindOpt);
 
 var builder = Host.CreateApplicationBuilder(args);
 
@@ -112,17 +121,28 @@ var app = builder.Build();
 
 var logger = app.Services.GetRequiredService<ILogger<Program>>();
 
+ConversationMemoryOptions? memOpts = null;
+ConversationMemoryClient? memClient = null;
+try
+{
+	memOpts = app.Services.GetRequiredService<IOptions<ConversationMemoryOptions>>().Value;
+	memClient = app.Services.GetRequiredService<ConversationMemoryClient>();
+}
+catch (Exception ex)
+{
+	logger.LogWarning(ex, "Conversation memory services not available");
+}
+
 // Optional clearing of conversation memory at startup
 try
 {
-	var memOpts = app.Services.GetRequiredService<IOptions<ConversationMemoryOptions>>().Value;
-	if (memOpts.Enabled && memOpts.ClearSessionOnStart)
+	// If dumping memory, do not clear anything
+	if (!dumpMemory && memOpts?.Enabled == true && memOpts.ClearSessionOnStart && memClient is not null)
 	{
-		var memClient = app.Services.GetRequiredService<ConversationMemoryClient>();
 		await memClient.ClearSessionAsync();
 		logger.LogInformation("Conversation memory cleared for session {SessionId}", memOpts.SessionId);
 	}
-	else if (clearOverride)
+	else if (clearOverride && !dumpMemory)
 	{
 		logger.LogInformation("ClearSessionOnStart overridden to {Value} via command line", clearOverride);
 	}
@@ -130,6 +150,52 @@ try
 catch (Exception ex)
 {
 	logger.LogWarning(ex, "Failed to clear conversation memory at startup");
+}
+
+// Dump memory if requested and exit without starting app
+if (dumpMemory)
+{
+	if (memOpts?.Enabled == true && memClient is not null)
+	{
+		try
+		{
+			var items = await memClient.GetAllSessionItemsAsync(dumpKind);
+			Console.ForegroundColor = ConsoleColor.Cyan;
+			Console.WriteLine($"=== Conversation Memory Dump (session {memOpts.SessionId}) count={items.Count} kind={(dumpKind ?? "*")}" );
+			Console.ResetColor();
+			if (items.Count == 0)
+			{
+				Console.WriteLine("No items.");
+			}
+			else
+			{
+				foreach (var item in items.OrderBy(i => i.T0))
+				{
+					var ts = DateTimeOffset.FromUnixTimeMilliseconds((long)item.T0).ToString("HH:mm:ss.fff");
+					Console.ForegroundColor = item.Kind switch
+					{
+						"act" => ConsoleColor.White,
+						"answer" => ConsoleColor.Yellow,
+						"final" => ConsoleColor.Green,
+						_ => ConsoleColor.Gray
+					};
+					Console.WriteLine($"[{ts}] kind={item.Kind} speaker={item.Speaker ?? "?"} id={item.Id} parent={item.ParentActId ?? "-"}");
+					Console.ResetColor();
+					Console.WriteLine(item.Text);
+					Console.WriteLine();
+				}
+			}
+		}
+		catch (Exception ex)
+		{
+			logger.LogError(ex, "Failed dumping conversation memory");
+		}
+	}
+	else
+	{
+		logger.LogInformation("Conversation memory not enabled or unavailable; cannot dump.");
+	}
+	return;
 }
 
 // Validate speech key from configuration (User Secrets) with env var fallback

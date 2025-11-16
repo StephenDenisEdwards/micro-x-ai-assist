@@ -63,7 +63,7 @@ public sealed class AzureOpenAIResponseAnswerProvider : IAnswerProvider
 				"CURRENT_QUERY:\n" +
 				$"{pack.NewActText}";
 
-			Console.ForegroundColor = ConsoleColor.Yellow;
+			Console.ForegroundColor = ConsoleColor.Green;
 			Console.WriteLine($@"Question to LLM: {userInputText}");
 			Console.ResetColor();
 #pragma warning disable OPENAI001
@@ -92,8 +92,10 @@ public sealed class AzureOpenAIResponseAnswerProvider : IAnswerProvider
 			}
 
 			var answer = sb.ToString();
-			Console.WriteLine($"AI ({resp.Status}): {answer}");
 
+			//Console.ForegroundColor = ConsoleColor.Green;
+			//Console.WriteLine($"AI ({resp.Status}): {answer}");
+			//Console.ResetColor();
 
 			_log.LogDebug("LLM answer length: {Len}", text?.Length ?? 0);
 			return text ?? string.Empty;
