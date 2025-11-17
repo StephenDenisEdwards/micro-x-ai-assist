@@ -18,6 +18,11 @@ public sealed class ChatPromptPackBuilderTests
 
         public Task<IReadOnlyList<ConversationItem>> GetRecentFinalsAsync(double nowMs) => Task.FromResult(Finals);
         public Task<IReadOnlyList<ConversationItem>> GetRelatedActsAsync(string actText, double nowMs) => Task.FromResult(Acts);
+        public Task<(ConversationItem Act, ConversationItem Answer)?> GetLastActAndAnswerAsync(double nowMs)
+        {
+	        throw new NotImplementedException();
+        }
+
         public Task<ConversationItem?> GetLatestAnswerForActAsync(string actId)
         {
             AnswersByActId.TryGetValue(actId, out var ans);

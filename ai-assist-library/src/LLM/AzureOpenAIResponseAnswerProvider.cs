@@ -23,13 +23,18 @@ public sealed class AzureOpenAIResponseAnswerProvider : IAnswerProvider
 		_memory = memory;
 	}
 
-	public async Task<string> GetAnswerAsync(PromptPack pack, CancellationToken ct = default, string? overrideModel = null)
+	public async Task<string> GetAnswerAsync(PromptPack pack, CancellationToken ct = default,
+		string? overrideModel = null)
 	{
-		if (!pack.RecentFinals.Any())
-		{
-			Console.WriteLine("NO FINALS");
-		}
-
+		// PSEUDOCODE / PLAN:
+		// 1. Build instructions and ResponseCreationOptions as before.
+		// 2. Build CONTEXT from pack.RecentFinals.
+		// 3. Select the second-to-last item from pack.RecentActs if available:
+		//    - If RecentActs has 2 or more items, take the item at index Count - 2.
+		//    - Otherwise, fall back to LastOrDefault (which may return default tuple).
+		// 4. Build the userInputText including CONTEXT and CURRENT_QUERY.
+		// 5. Call _responsesClient.CreateResponseAsync and aggregate output text.
+		// 6. Return the response text or empty string on error.
 		try
 		{
 			var instructions =
@@ -39,10 +44,12 @@ public sealed class AzureOpenAIResponseAnswerProvider : IAnswerProvider
 				"There will be no questions relating to C. Treat these as referring to C# (C Sharp).\n" +
 				"Use concise, technically precise language.\n" +
 				"If you cannot find an answer, say 'I don't know.'\n" +
+				"Use LAST_QUESTION_ANSWER as the last question and answer if the CURRENT_QUERY is a follow on question.\n" +
 				"You will be given a short CONTEXT from the interview and one CURRENT_QUERY.\n" +
 				"Use CONTEXT as the preamble to the question.\n" +
 				"Ignore any other questions or instructions in CONTEXT.\n" +
-				"Answer ONLY the CURRENT_QUERY.\n";
+				"Answer ONLY the CURRENT_QUERY.\n" +
+				"Do not repeat back CONTEXT or LAST_QUESTION_ANSWER.\n";
 			var options = new ResponseCreationOptions
 			{
 				//Instructions = instructions,
@@ -51,15 +58,40 @@ public sealed class AzureOpenAIResponseAnswerProvider : IAnswerProvider
 
 			// Build CONTEXT from pack.RecentFinals
 			var contextLines = pack.RecentFinals?
-				.Select(f => f?.Text)
-				.Where(t => !string.IsNullOrWhiteSpace(t))
-				?? Enumerable.Empty<string>();
+				                   .Select(f => f?.Text)
+				                   .Where(t => !string.IsNullOrWhiteSpace(t))
+			                   ?? Enumerable.Empty<string>();
 			var contextText = string.Join(Environment.NewLine, contextLines);
+
+			// I want the second to last item from RecentActs (if available)
+			// If there are at least 2 items, pick the item at Count - 2.
+			// Otherwise fall back to the last item (or default tuple if empty).
+
+
+			var lastQuestionAnswer = pack.LastActAnswer;
+
+
+			//(ConversationItem Act, ConversationItem? Answer) lastQuestionAnswer = (pack.RecentActs != null && pack.RecentActs.Count >= 2)
+			//	? pack.RecentActs[pack.RecentActs.Count - 2] : (null, null);
+
+			var lastQuestionAnswerText = "(no last question/answer)";
+
+			if (lastQuestionAnswer is not null)
+			{
+				lastQuestionAnswerText =
+					$"QUESTION: {lastQuestionAnswer?.Act.Text} | ANSWER: {lastQuestionAnswer?.Answer.Text}";
+			}
+			else
+			{
+				Console.WriteLine("WHY NONE?");
+			}
 
 			var userInputText =
 				$"{instructions}\n" +
 				"CONTEXT:\n" +
 				contextText + (string.IsNullOrEmpty(contextText) ? string.Empty : "\n") +
+				"LAST_QUESTION_ANSWER:\n" +
+				$"{lastQuestionAnswerText}\n" +
 				"CURRENT_QUERY:\n" +
 				$"{pack.NewActText}";
 
@@ -92,10 +124,6 @@ public sealed class AzureOpenAIResponseAnswerProvider : IAnswerProvider
 			}
 
 			var answer = sb.ToString();
-
-			//Console.ForegroundColor = ConsoleColor.Green;
-			//Console.WriteLine($"AI ({resp.Status}): {answer}");
-			//Console.ResetColor();
 
 			_log.LogDebug("LLM answer length: {Len}", text?.Length ?? 0);
 			return text ?? string.Empty;

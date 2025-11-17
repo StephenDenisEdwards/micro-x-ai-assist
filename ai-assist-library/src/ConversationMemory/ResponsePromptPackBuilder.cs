@@ -10,59 +10,63 @@ public sealed class ResponsePromptPackBuilder : IPromptPackBuilder
 
 	public async Task<PromptPack> BuildAsync(string fullFinal, string newActText, double nowMs)
 	{
-		var finals = await _memory.GetRecentFinalsAsync(nowMs);
+		IReadOnlyList<ConversationItem> finals = await _memory.GetRecentFinalsAsync(nowMs);
 		if (!finals.Any())
 		{
 			Console.WriteLine("!NP");
 		}
-		var adjustedFinals = EnsureFinalContainsQuestionPreamble(finals, newActText, fullFinal);
+		IReadOnlyList<ConversationItem> adjustedFinals = EnsureFinalContainsQuestionPreamble(finals, newActText, fullFinal);
 
 		if (!adjustedFinals.Any())
 		{
 			Console.WriteLine("!NP");
 		}
 		
-		var acts = await _memory.GetRelatedActsAsync(newActText, nowMs);
-		var pairs = new List<(ConversationItem, ConversationItem?)>();
-		foreach (var a in acts)
-		{
-			var ans = await _memory.GetLatestAnswerForActAsync(a.Id);
-			pairs.Add((a, ans));
-		}
-		var trimmed = pairs.Take(3).ToList();
-		var open = await _memory.GetOpenActsAsync(nowMs);
-		var systemPrompt = DefaultSystemPrompt;
+		//var acts = await _memory.GetRelatedActsAsync(newActText, nowMs);
+		//var pairs = new List<(ConversationItem, ConversationItem?)>();
+		//foreach (var a in acts)
+		//{
+		//	var ans = await _memory.GetLatestAnswerForActAsync(a.Id);
+		//	pairs.Add((a, ans));
+		//}
+		//var trimmed = pairs.Take(3).ToList();
+		//var open = await _memory.GetOpenActsAsync(nowMs);
+		string systemPrompt = DefaultSystemPrompt;
 
-		var sb = new StringBuilder();
+		StringBuilder sb = new StringBuilder();
 		sb.AppendLine("recent_finals:");
-		foreach (var f in adjustedFinals)
+		foreach (ConversationItem f in adjustedFinals)
 		{
 			sb.AppendLine($"- [{f.Speaker} {Fmt(f.T0)}] {Trunc(f.Text, 180)}");
 		}
 
-		sb.AppendLine();
-		sb.AppendLine("recent_acts:");
-		foreach (var (act, ans) in trimmed)
-		{
-			var prefix = act.Text.StartsWith("IMP", StringComparison.OrdinalIgnoreCase) ? "IMP" : "Q";
-			var ansStr = ans is null ? "(no answer)" : $"{ans.Speaker}: {Trunc(ans.Text, 180)}";
-			sb.AppendLine($"- {prefix}: \"{Trunc(act.Text, 200)}\" A: {ansStr}");
-		}
-		if (open.Count > 0)
-		{
-			sb.AppendLine();
-			sb.AppendLine("open_items:");
-			foreach (var o in open) sb.AppendLine($"- IMP: \"{Trunc(o.Text, 180)}\"");
-		}
+		//sb.AppendLine();
+		//sb.AppendLine("recent_acts:");
+		//foreach (var (act, ans) in trimmed)
+		//{
+		//	var prefix = act.Text.StartsWith("IMP", StringComparison.OrdinalIgnoreCase) ? "IMP" : "Q";
+		//	var ansStr = ans is null ? "(no answer)" : $"{ans.Speaker}: {Trunc(ans.Text, 180)}";
+		//	sb.AppendLine($"- {prefix}: \"{Trunc(act.Text, 200)}\" A: {ansStr}");
+		//}
+		//if (open.Count > 0)
+		//{
+		//	sb.AppendLine();
+		//	sb.AppendLine("open_items:");
+		//	foreach (var o in open) sb.AppendLine($"- IMP: \"{Trunc(o.Text, 180)}\"");
+		//}
 		sb.AppendLine();
 		sb.AppendLine("question:");
 		sb.AppendLine($"\"{newActText}\"");
 
+		(ConversationItem Act, ConversationItem Answer)? lastActAndAnswer = await _memory.GetLastActAndAnswerAsync(nowMs);
+
+
 		return new PromptPack
 		{
 			RecentFinals = adjustedFinals,
-			RecentActs = trimmed,
-			OpenActs = open,
+			//RecentActs = trimmed,
+			LastActAnswer = lastActAndAnswer,
+			//OpenActs = open,
 			NewActText = newActText,
 			SystemPrompt = systemPrompt,
 			AssembledPrompt = sb.ToString()

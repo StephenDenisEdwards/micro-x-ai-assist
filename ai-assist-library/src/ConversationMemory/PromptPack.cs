@@ -8,4 +8,5 @@ public sealed class PromptPack
 	public string NewActText { get; init; } = string.Empty;
 	public string SystemPrompt { get; init; } = string.Empty;
 	public string AssembledPrompt { get; init; } = string.Empty;
+	public (ConversationItem Act, ConversationItem Answer)? LastActAnswer { get; set; }
 }

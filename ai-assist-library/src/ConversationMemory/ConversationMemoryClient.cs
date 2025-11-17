@@ -173,6 +173,39 @@ public sealed class ConversationMemoryClient
 		return null;
 	}
 
+	/// <summary>
+	/// Find the most recent answer in the current session and return the corresponding act and answer pair.
+	/// Returns null if no answer (and therefore no act) is found.
+	/// </summary>
+	public async Task<(ConversationItem Act, ConversationItem Answer)?> GetLastActAndAnswerAsync(double nowMs)
+	{
+		if (!_opts.Enabled || _searchClient is null) return null;
+		await EnsureIndexAsync();
+
+		// Look for the most recent answer for this session
+		var filterAnswers = System.FormattableString.Invariant($"sessionId eq '{Escape(_opts.SessionId)}' and kind eq 'answer'");
+		var ansOptions = new SearchOptions { Filter = filterAnswers, Size = 1 };
+		ansOptions.OrderBy.Add("t0 desc");
+		var ansResults = await _searchClient.SearchAsync<ConversationItem>("*", ansOptions);
+		await foreach (var ar in ansResults.Value.GetResultsAsync())
+		{
+			var answer = ar.Document;
+			if (string.IsNullOrWhiteSpace(answer.ParentActId)) continue;
+
+			// Fetch the act document referenced by this answer
+			var filterAct = System.FormattableString.Invariant($"sessionId eq '{Escape(_opts.SessionId)}' and id eq '{Escape(answer.ParentActId)}' and kind eq 'act'");
+			var actOptions = new SearchOptions { Filter = filterAct, Size = 1 };
+			var actResults = await _searchClient.SearchAsync<ConversationItem>("*", actOptions);
+			await foreach (var ares in actResults.Value.GetResultsAsync())
+			{
+				var act = ares.Document;
+				return (act, answer);
+			}
+		}
+
+		return null;
+	}
+
 	public async Task<IReadOnlyList<ConversationItem>> GetOpenActsAsync(double nowMs)
 	{
 		if (!_opts.Enabled || _searchClient is null) return Array.Empty<ConversationItem>();

@@ -11,6 +11,8 @@ public interface IConversationMemoryReader
 {
     Task<IReadOnlyList<ConversationItem>> GetRecentFinalsAsync(double nowMs);
     Task<IReadOnlyList<ConversationItem>> GetRelatedActsAsync(string actText, double nowMs);
-    Task<ConversationItem?> GetLatestAnswerForActAsync(string actId);
+    Task<(ConversationItem Act, ConversationItem Answer)?> GetLastActAndAnswerAsync(double nowMs);
+
+	Task<ConversationItem?> GetLatestAnswerForActAsync(string actId);
     Task<IReadOnlyList<ConversationItem>> GetOpenActsAsync(double nowMs);
 }

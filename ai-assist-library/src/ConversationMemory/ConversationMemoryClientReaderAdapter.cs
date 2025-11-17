@@ -10,6 +10,10 @@ public sealed class ConversationMemoryClientReaderAdapter : IConversationMemoryR
 
 	public Task<IReadOnlyList<ConversationItem>> GetRecentFinalsAsync(double nowMs) => _inner.GetRecentFinalsAsync(nowMs);
 	public Task<IReadOnlyList<ConversationItem>> GetRelatedActsAsync(string actText, double nowMs) => _inner.GetRelatedActsAsync(actText, nowMs);
+
+	public Task<(ConversationItem Act, ConversationItem Answer)?> GetLastActAndAnswerAsync(double nowMs) =>
+		_inner.GetLastActAndAnswerAsync(nowMs);
+
 	public Task<ConversationItem?> GetLatestAnswerForActAsync(string actId) => _inner.GetLatestAnswerForActAsync(actId);
 	public Task<IReadOnlyList<ConversationItem>> GetOpenActsAsync(double nowMs) => _inner.GetOpenActsAsync(nowMs);
 }
