@@ -131,9 +131,11 @@ public sealed class ConversationMemoryClient
 	public async Task<IReadOnlyList<ConversationItem>> GetRecentFinalsAsync(double nowMs)
 	{
 		if (!_opts.Enabled || _searchClient is null) return Array.Empty<ConversationItem>();
-		var cutoff = nowMs - 40000; //40s
-		var filter = $"sessionId eq '{Escape(_opts.SessionId)}' and kind eq 'final' and t0 ge {cutoff}";
-		var options = new SearchOptions { Filter = filter, OrderBy = { "t0 asc" }, Size = 4 };
+		await EnsureIndexAsync();
+		var cutoff = nowMs - _opts.RecentFinalWindow.TotalMilliseconds; // from config
+		var filter = System.FormattableString.Invariant($"sessionId eq '{Escape(_opts.SessionId)}' and kind eq 'final' and t0 ge {cutoff}");
+		var options = new SearchOptions { Filter = filter, Size = _opts.RecentFinalsPageSize };
+		options.OrderBy.Add("t0 asc");
 		var results = await _searchClient.SearchAsync<ConversationItem>("*", options);
 		var list = new List<ConversationItem>();
 		await foreach (var r in results.Value.GetResultsAsync()) list.Add(r.Document);
@@ -143,11 +145,12 @@ public sealed class ConversationMemoryClient
 	public async Task<IReadOnlyList<ConversationItem>> GetRelatedActsAsync(string actText, double nowMs)
 	{
 		if (!_opts.Enabled || _searchClient is null || string.IsNullOrWhiteSpace(actText)) return Array.Empty<ConversationItem>();
-		var cutoff = nowMs - 1_200_000; //20m
-		var filter = $"sessionId eq '{Escape(_opts.SessionId)}' and kind eq 'act' and t0 ge {cutoff}";
+		await EnsureIndexAsync();
+		var cutoff = nowMs - _opts.RelatedActsWindow.TotalMilliseconds; // from config
+		var filter = System.FormattableString.Invariant($"sessionId eq '{Escape(_opts.SessionId)}' and kind eq 'act' and t0 ge {cutoff}");
 		var options = new SearchOptions();
 		options.Filter = filter;
-		options.Size = 5;
+		options.Size = _opts.RelatedActsPageSize;
 		// Leave default query mode; rely on full-text of 'text'.
 		options.SearchFields.Add("text");
 		var results = await _searchClient.SearchAsync<ConversationItem>(actText, options);
@@ -159,6 +162,7 @@ public sealed class ConversationMemoryClient
 	public async Task<ConversationItem?> GetLatestAnswerForActAsync(string actId)
 	{
 		if (!_opts.Enabled || _searchClient is null) return null;
+		await EnsureIndexAsync();
 		var filter = $"sessionId eq '{Escape(_opts.SessionId)}' and kind eq 'answer' and parentActId eq '{Escape(actId)}'";
 		var options = new SearchOptions();
 		options.Filter = filter;
@@ -172,9 +176,10 @@ public sealed class ConversationMemoryClient
 	public async Task<IReadOnlyList<ConversationItem>> GetOpenActsAsync(double nowMs)
 	{
 		if (!_opts.Enabled || _searchClient is null) return Array.Empty<ConversationItem>();
-		var cutoff = nowMs - 1_200_000;
-		var filter = $"sessionId eq '{Escape(_opts.SessionId)}' and kind eq 'act' and t0 ge {cutoff}";
-		var options = new SearchOptions { Filter = filter, Size = 50 };
+		await EnsureIndexAsync();
+		var cutoff = nowMs - _opts.OpenActsWindow.TotalMilliseconds; // from config
+		var filter = System.FormattableString.Invariant($"sessionId eq '{Escape(_opts.SessionId)}' and kind eq 'act' and t0 ge {cutoff}");
+		var options = new SearchOptions { Filter = filter, Size = _opts.OpenActsPageSize };
 		var results = await _searchClient.SearchAsync<ConversationItem>("*", options);
 		var acts = new List<ConversationItem>();
 		await foreach (var r in results.Value.GetResultsAsync()) acts.Add(r.Document);
