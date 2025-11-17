@@ -11,6 +11,10 @@ public sealed class ResponsePromptPackBuilder : IPromptPackBuilder
 	public async Task<PromptPack> BuildAsync(string fullFinal, string newActText, double nowMs)
 	{
 		var finals = await _memory.GetRecentFinalsAsync(nowMs);
+		if (!finals.Any())
+		{
+			Console.WriteLine("!NP");
+		}
 		var adjustedFinals = EnsureFinalContainsQuestionPreamble(finals, newActText, fullFinal);
 
 		if (!adjustedFinals.Any())
