@@ -76,6 +76,7 @@ public sealed class ConversationMemoryClient
 	{
 		if (!_opts.Enabled || _searchClient is null) return;
 		await EnsureIndexAsync();
+
 		var item = new ConversationItem
 		{
 			Id = NewId(_opts.SessionId, ConversationKinds.Final),
@@ -135,11 +136,11 @@ public sealed class ConversationMemoryClient
 		var cutoff = nowMs - _opts.RecentFinalWindow.TotalMilliseconds; // from config
 		var filter = System.FormattableString.Invariant($"sessionId eq '{Escape(_opts.SessionId)}' and kind eq 'final' and t0 ge {cutoff}");
 		var options = new SearchOptions { Filter = filter, Size = _opts.RecentFinalsPageSize };
-		options.OrderBy.Add("t0 asc");
+		options.OrderBy.Add("t0 desc");
 		var results = await _searchClient.SearchAsync<ConversationItem>("*", options);
 		var list = new List<ConversationItem>();
 		await foreach (var r in results.Value.GetResultsAsync()) list.Add(r.Document);
-		return list;
+		return list.OrderBy(a => a.T0).ToList(); ;
 	}
 
 	public async Task<IReadOnlyList<ConversationItem>> GetRelatedActsAsync(string actText, double nowMs)
