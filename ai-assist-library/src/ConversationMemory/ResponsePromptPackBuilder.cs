@@ -11,6 +11,15 @@ public sealed class ResponsePromptPackBuilder : IPromptPackBuilder
 	public async Task<PromptPack> BuildAsync(string fullFinal, string newActText, double nowMs)
 	{
 		IReadOnlyList<ConversationItem> finals = await _memory.GetRecentFinalsAsync(nowMs);
+
+		Console.ForegroundColor=ConsoleColor.Cyan;
+		foreach (var conversationItem in finals)
+		{
+			Console.WriteLine($"	{conversationItem.Text}");
+		}
+		Console.ResetColor();
+
+
 		if (!finals.Any())
 		{
 			Console.WriteLine("!NP");
