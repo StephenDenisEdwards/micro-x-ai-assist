@@ -12,24 +12,24 @@ public sealed class ResponsePromptPackBuilder : IPromptPackBuilder
 	{
 		IReadOnlyList<ConversationItem> finals = await _memory.GetRecentFinalsAsync(nowMs);
 
-		Console.ForegroundColor=ConsoleColor.Cyan;
-		foreach (var conversationItem in finals)
-		{
-			Console.WriteLine($"	{conversationItem.Text}");
-		}
-		Console.ResetColor();
+		//Console.ForegroundColor=ConsoleColor.Cyan;
+		//foreach (var conversationItem in finals)
+		//{
+		//	Console.WriteLine($"	{conversationItem.Text}");
+		//}
+		//Console.ResetColor();
 
 
-		if (!finals.Any())
-		{
-			Console.WriteLine("!NP");
-		}
+		//if (!finals.Any())
+		//{
+		//	Console.WriteLine("!NP");
+		//}
 		IReadOnlyList<ConversationItem> adjustedFinals = EnsureFinalContainsQuestionPreamble(finals, newActText, fullFinal);
 
-		if (!adjustedFinals.Any())
-		{
-			Console.WriteLine("!NP");
-		}
+		//if (!adjustedFinals.Any())
+		//{
+		//	Console.WriteLine("!NP");
+		//}
 		
 		//var acts = await _memory.GetRelatedActsAsync(newActText, nowMs);
 		//var pairs = new List<(ConversationItem, ConversationItem?)>();
