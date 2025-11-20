@@ -55,6 +55,15 @@ builder.Services.Configure<AudioOptions>(builder.Configuration.GetSection("Audio
 builder.Services.Configure<SpeechOptions>(builder.Configuration.GetSection("Speech"));
 builder.Services.Configure<QuestionDetectionOptions>(builder.Configuration.GetSection("QuestionDetection"));
 
+
+// GooGle Gemini 
+// builder.Services.Configure<GoogleGeminiOptions>(builder.Configuration.GetSection("GoogleGemini"));
+// builder.Services.AddHttpClient<GoogleGeminiAnswerProvider>();
+
+// Swap default provider to Gemini (or keep both for A/B testing)
+// builder.Services.AddTransient<IAnswerProvider, GoogleGeminiAnswerProvider>();
+
+
 // Conversation memory (binds from configuration; generates a SessionId if missing)
 builder.Services.AddConversationMemory(o =>
 {
