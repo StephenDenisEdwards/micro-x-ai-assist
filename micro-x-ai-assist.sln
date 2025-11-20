@@ -1,6 +1,6 @@
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 17
-VisualStudioVersion = 17.0.31903.59
+# Visual Studio Version 18
+VisualStudioVersion = 18.0.11217.181 d18.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "remote-stt", "remote-stt\remote-stt.csproj", "{7E1E6790-FFB0-AE25-0ECA-C6291E441B7D}"
 EndProject
@@ -13,6 +13,8 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AiAssistLibrary.IntegrationTests", "AiAssistLibrary.IntegrationTests\AiAssistLibrary.IntegrationTests.csproj", "{C40231F6-6B55-A5A4-6773-0E305169903F}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "documentation", "documentation\documentation.csproj", "{3CBFF5BD-CA7D-4823-A4BB-4E6D4E8E39F5}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GeminiLiveConsole", "GeminiLiveConsole\GeminiLiveConsole.csproj", "{61A92377-CE1B-2CAB-C871-39BD0B230521}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -44,6 +46,10 @@ Global
 		{3CBFF5BD-CA7D-4823-A4BB-4E6D4E8E39F5}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{3CBFF5BD-CA7D-4823-A4BB-4E6D4E8E39F5}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{3CBFF5BD-CA7D-4823-A4BB-4E6D4E8E39F5}.Release|Any CPU.Build.0 = Release|Any CPU
+		{61A92377-CE1B-2CAB-C871-39BD0B230521}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{61A92377-CE1B-2CAB-C871-39BD0B230521}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{61A92377-CE1B-2CAB-C871-39BD0B230521}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{61A92377-CE1B-2CAB-C871-39BD0B230521}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
