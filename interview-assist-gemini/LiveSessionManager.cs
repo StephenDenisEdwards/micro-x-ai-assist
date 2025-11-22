@@ -7,8 +7,10 @@ public sealed class LiveSessionManager
     private readonly GeminiLiveClient _client;
     private readonly AudioCaptureService _audio;
 
-    public event Action<string>? OnTranscript;
-    public event Action<DetectedIntent>? OnIntent; // currently unused with new message schema
+    public event Action<string>? OnTranscript; // aggregated
+    public event Action<string>? OnInputTranscriptionUpdate; // incremental microphone transcription
+    public event Action<string>? OnAssistantResponsePart; // streamed assistant output
+    public event Action<DetectedIntent>? OnIntent; // currently unused
     public event Action<double>? OnVolume;
     public event Action<Exception>? OnError;
     public event Action? OnDisconnect;
@@ -19,7 +21,7 @@ public sealed class LiveSessionManager
         _audio = new AudioCaptureService(16000);
 
         _client.OnOpen += () => _audio.Start();
-        _client.OnMessage += HandleMessage;
+        _client.OnMessage += HandleMessage_2;
         _client.OnError += e => OnError?.Invoke(e);
         _client.OnClose += () =>
         {
@@ -39,11 +41,21 @@ public sealed class LiveSessionManager
     public Task ConnectAsync(CancellationToken ct = default) => _client.ConnectAsync(ct);
     public Task DisconnectAsync() => _client.DisconnectAsync();
 
+    // Allow manual control of audio capture
+    public void StartAudio() => _audio.Start();
+    public void StopAudio() => _audio.Stop();
+
+    // Forward end-of-stream signal to underlying client
+    public Task SendAudioStreamEndAsync(CancellationToken ct = default) => _client.SendAudioStreamEndAsync(ct);
+
     private void HandleMessage(GeminiMessage msg)
     {
         var transcript = msg.ServerContent?.InputTranscription?.Text;
         if (!string.IsNullOrWhiteSpace(transcript))
+        {
             OnTranscript?.Invoke(transcript);
+            OnInputTranscriptionUpdate?.Invoke(transcript);
+        }
 
         // Streamed model turn text parts (assistant responses)
         var parts = msg.ServerContent?.ModelTurn?.Parts;
@@ -55,13 +67,43 @@ public sealed class LiveSessionManager
                 {
                     // For now treat assistant textual output as transcript as well
                     OnTranscript?.Invoke(p.Text);
+                    OnAssistantResponsePart?.Invoke(p.Text);
                 }
             }
         }
         // Intent/tool handling removed; protocol no longer provides function calls in this simplified schema.
     }
 
-    private static double ComputeRms(byte[] pcm16)
+    private void HandleMessage_2(GeminiMessage msg)
+    {
+	    var transcript = msg.ServerContent?.InputTranscription?.Text;
+	    if (!string.IsNullOrWhiteSpace(transcript))
+	    {
+		    OnTranscript?.Invoke(transcript);
+		    OnInputTranscriptionUpdate?.Invoke(transcript);
+	    }
+
+		if (msg.ToolCall?.FunctionCalls != null)
+	    {
+		    foreach (var fc in msg.ToolCall.FunctionCalls)
+		    {
+			    if (fc.Name == "report_intent" && fc.Args != null)
+			    {
+				    var intent = new DetectedIntent
+				    {
+					    Text = fc.Args.TryGetValue("text", out var t) ? t?.ToString() ?? "" : "",
+					    Type = fc.Args.TryGetValue("type", out var tp) && tp?.ToString() == "QUESTION"
+						    ? IntentType.QUESTION : IntentType.IMPERATIVE,
+					    Answer = fc.Args.TryGetValue("answer", out var ans) ? ans?.ToString() ?? "" : ""
+				    };
+				    OnIntent?.Invoke(intent);
+				    _ = _client.SendToolResponseAsync(fc); // ack
+			    }
+		    }
+	    }
+    }
+
+	private static double ComputeRms(byte[] pcm16)
     {
         int samples = pcm16.Length / 2;
         if (samples == 0) return 0;

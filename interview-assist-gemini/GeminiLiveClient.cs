@@ -1,4 +1,4 @@
-using System.Net.WebSockets;
+﻿using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
 using GeminiLiveConsole.Models;
@@ -19,10 +19,11 @@ public sealed class GeminiLiveClient : IAsyncDisposable
     public event Action<Exception>? OnError;
     public event Action<GeminiMessage>? OnMessage;
     public bool IsConnected { get; private set; }
-
-    public GeminiLiveClient(string apiKey, string model = "gemini-2.0-flash-exp", string systemPrompt = "You are a helpful assistant. Listen to the user speaking and reply in text.")
+	//You are a dedicated Conversation Monitor and Assistant. Detect QUESTION or IMPERATIVE and call report_intent. Ignore casual speech.
+	//public GeminiLiveClient(string apiKey, string model = "gemini-2.0-flash-exp", string systemPrompt = "You are a helpful assistant. Listen to the user speaking and reply in text.")
+	public GeminiLiveClient(string apiKey, string model = "gemini-2.0-flash-exp", string systemPrompt = "You are a dedicated Conversation Monitor and Assistant. Detect QUESTION or IMPERATIVE and call report_intent. Ignore casual speech.")
     {
-        _apiKey = apiKey;
+		_apiKey = apiKey;
         _model = model;
         _systemPrompt = systemPrompt;
     }
@@ -49,8 +50,67 @@ public sealed class GeminiLiveClient : IAsyncDisposable
         }
     }
 
-    // --- Setup frame identical shape to Program.cs ---
-    private async Task SendSetupFrameAsync(CancellationToken ct)
+	// --- Setup frame identical shape to Program.cs ---
+	private async Task SendSetupFrameAsync(CancellationToken ct)
+	{
+		var setupMessage = new
+		{
+			setup = new
+			{
+				model = $"models/{_model}",
+				generationConfig = new
+				{
+					//responseModalities = new[] { "AUDIO" },
+					responseModalities = new[] { "TEXT" },
+				},
+				inputAudioTranscription = new { },
+				//systemInstruction = _systemPrompt,
+				systemInstruction = new
+				{
+					role = "system",
+					parts = new[]
+					{
+						new { text = _systemPrompt }
+					}
+				},
+				tools = new[]
+				{
+					new
+					{
+						function_declarations = new[]
+						{
+							new
+							{
+								name = "report_intent",
+								description = "Report detected question or imperative command.",
+								parameters = new
+								{
+									type = "object",
+									properties = new
+									{
+										text = new { type = "string" },
+										type = new
+										{
+											type = "string",
+											// 👇 THIS is the key change
+											// 'enum', NOT 'enumValues'
+											// use @enum because 'enum' is a C# keyword
+											@enum = new[] { "QUESTION", "IMPERATIVE" }
+										},
+										answer = new { type = "string" }
+									},
+									required = new[] { "text", "type", "answer" }
+								}
+							}
+						}
+					}}
+			}
+		};
+		await SendJsonAsync(setupMessage, ct);
+	}
+
+
+    private async Task SendSetupFrameAsync_2(CancellationToken ct)
     {
         var setupMessage = new
         {
@@ -92,9 +152,23 @@ public sealed class GeminiLiveClient : IAsyncDisposable
         };
         await SendJsonAsync(audioFrame, ct);
     }
+	public async Task SendToolResponseAsync(ToolFunctionCall call, CancellationToken ct = default)
+	{
+		var payload = new
+		{
+			toolResponse = new
+			{
+				functionResponses = new[]
+				{
+					new { id = call.Id, name = call.Name, response = new { result = "logged" } }
+				}
+			}
+		};
+		await SendJsonAsync(payload, ct);
+	}
 
-    // --- Signal end of audio stream ---
-    public async Task SendAudioStreamEndAsync(CancellationToken ct = default)
+	// --- Signal end of audio stream ---
+	public async Task SendAudioStreamEndAsync(CancellationToken ct = default)
     {
         if (!IsConnected) return;
         var endMessage = new
@@ -135,7 +209,11 @@ public sealed class GeminiLiveClient : IAsyncDisposable
                     result = await _ws.ReceiveAsync(new ArraySegment<byte>(buffer), token);
                     if (result.MessageType == WebSocketMessageType.Close)
                     {
-                        await CloseInternalAsync();
+	                    Console.ForegroundColor = ConsoleColor.Cyan;
+						Console.WriteLine(result.CloseStatusDescription);
+						Console.ResetColor();
+
+						await CloseInternalAsync();
                         return;
                     }
                     ms.Write(buffer, 0, result.Count);
