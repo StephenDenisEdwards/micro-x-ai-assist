@@ -21,16 +21,16 @@ class Program
         }
 
         Console.WriteLine("Gemini Live Interview Assist\n");
-        Console.WriteLine("Commands: /quit, /stop, /start, /end (signal end of audio stream)\nPress ENTER to start after connection.");
+        Console.WriteLine("Commands: /quit, /stop, /start, /end (signal end of audio stream), /mic, /sys (switch source)\nPress ENTER to start after connection.");
 
-        var manager = new LiveSessionManager(apiKey, model: "gemini-2.0-flash-exp");
+        var manager = new LiveSessionManager(apiKey, model: "gemini-2.0-flash-exp", AudioInputSource.Microphone);
 
         var lastTranscriptionLength = 0;
         var transcriptionPrefix = "You: ";
 
         manager.OnInputTranscriptionUpdate += t =>
         {
-            // Live microphone transcription on one line
+            // Live microphone/system transcription on one line
             Console.ForegroundColor = ConsoleColor.DarkGray;
             var line = transcriptionPrefix + t;
             int pad = Math.Max(0, lastTranscriptionLength - line.Length);
@@ -68,7 +68,7 @@ class Program
 
         Console.WriteLine("Connecting...");
         await manager.ConnectAsync(cts.Token);
-        Console.WriteLine("Connected. Press ENTER to start streaming microphone audio.");
+        Console.WriteLine("Connected. Press ENTER to start streaming audio.");
         Console.ReadLine();
 
         Console.WriteLine("Streaming audio. Type commands or speak.\n");
@@ -95,7 +95,7 @@ class Program
             {
                 manager.StartAudio();
                 Console.WriteLine();
-                Console.WriteLine("Audio capture started.");
+                Console.WriteLine($"Audio capture started. Source = {manager.CurrentAudioSource}.");
                 continue;
             }
             if (line.Equals("/end", StringComparison.OrdinalIgnoreCase))
@@ -103,6 +103,20 @@ class Program
                 Console.WriteLine();
                 Console.WriteLine("Sending audioStreamEnd...");
                 await manager.SendAudioStreamEndAsync(cts.Token);
+                continue;
+            }
+            if (line.Equals("/mic", StringComparison.OrdinalIgnoreCase))
+            {
+                manager.UseMicrophone();
+                Console.WriteLine();
+                Console.WriteLine("Switched audio source to Microphone.");
+                continue;
+            }
+            if (line.Equals("/sys", StringComparison.OrdinalIgnoreCase))
+            {
+                manager.UseSystemAudio();
+                Console.WriteLine();
+                Console.WriteLine("Switched audio source to System (loopback).");
                 continue;
             }
         }

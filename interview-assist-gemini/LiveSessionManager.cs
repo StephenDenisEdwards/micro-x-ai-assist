@@ -1,4 +1,4 @@
-	using GeminiLiveConsole.Models;
+using GeminiLiveConsole.Models;
 
 namespace GeminiLiveConsole;
 
@@ -15,10 +15,10 @@ public sealed class LiveSessionManager
     public event Action<Exception>? OnError;
     public event Action? OnDisconnect;
 
-    public LiveSessionManager(string apiKey, string model)
+    public LiveSessionManager(string apiKey, string model, AudioInputSource audioSource= AudioInputSource.Microphone)
     {
         _client = new GeminiLiveClient(apiKey, model);
-        _audio = new AudioCaptureService(16000);
+        _audio = new AudioCaptureService(16000, audioSource);
 
         _client.OnOpen += () => _audio.Start();
         _client.OnMessage += HandleMessage_2;
@@ -44,6 +44,11 @@ public sealed class LiveSessionManager
     // Allow manual control of audio capture
     public void StartAudio() => _audio.Start();
     public void StopAudio() => _audio.Stop();
+
+    // Switch between microphone and system (loopback) audio
+    public void UseMicrophone() => _audio.SetSource(AudioInputSource.Microphone);
+    public void UseSystemAudio() => _audio.SetSource(AudioInputSource.Loopback);
+    public AudioInputSource CurrentAudioSource => _audio.Source;
 
     // Forward end-of-stream signal to underlying client
     public Task SendAudioStreamEndAsync(CancellationToken ct = default) => _client.SendAudioStreamEndAsync(ct);
