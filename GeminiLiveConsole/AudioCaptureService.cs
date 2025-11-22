@@ -1,61 +1,41 @@
 using NAudio.Wave;
-using System.Collections.Concurrent;
-using System.Runtime.CompilerServices;
 
 namespace GeminiLiveConsole;
 
-public interface IAudioSource : IDisposable
+public sealed class AudioCaptureService : IDisposable
 {
-    int SampleRate { get; }
-    IAsyncEnumerable<byte[]> GetPcm16Chunks(CancellationToken ct);
-}
-
-public sealed class AudioCaptureService : IAudioSource
-{
+    private WaveInEvent? _waveIn;
+    public event Action<byte[]>? OnAudioChunk;
     private readonly int _sampleRate;
-    private readonly WaveInEvent _waveIn;
-    private readonly BlockingCollection<byte[]> _queue = new();
-    private bool _disposed;
 
-    public int SampleRate => _sampleRate;
+    public AudioCaptureService(int sampleRate = 16000) => _sampleRate = sampleRate;
 
-    public AudioCaptureService(int sampleRate = 16000)
+    public void Start()
     {
-        _sampleRate = sampleRate;
         _waveIn = new WaveInEvent
         {
-            WaveFormat = new WaveFormat(sampleRate, 16, 1),
+            WaveFormat = new WaveFormat(_sampleRate, 16, 1),
             BufferMilliseconds = 100
         };
-        _waveIn.DataAvailable += (s, e) =>
-        {
-            var buffer = new byte[e.BytesRecorded];
-            Array.Copy(e.Buffer, buffer, e.BytesRecorded);
-            _queue.Add(buffer);
-        };
+        _waveIn.DataAvailable += HandleData;
+        _waveIn.StartRecording();
     }
 
-    public void Start() => _waveIn.StartRecording();
-    public void Stop() => _waveIn.StopRecording();
-
-    public async IAsyncEnumerable<byte[]> GetPcm16Chunks([EnumeratorCancellation] CancellationToken ct)
+    private void HandleData(object? sender, WaveInEventArgs e)
     {
-        while (!ct.IsCancellationRequested)
-        {
-            byte[]? data;
-            try { data = _queue.Take(ct); }
-            catch (OperationCanceledException) { yield break; }
-            yield return data;
-            await Task.Yield();
-        }
+        var chunk = new byte[e.BytesRecorded];
+        Array.Copy(e.Buffer, chunk, e.BytesRecorded);
+        OnAudioChunk?.Invoke(chunk);
     }
 
-    public void Dispose()
+    public void Stop()
     {
-        if (_disposed) return;
-        _disposed = true;
-        Stop();
+        if (_waveIn == null) return;
+        _waveIn.DataAvailable -= HandleData;
+        _waveIn.StopRecording();
         _waveIn.Dispose();
-        _queue.Dispose();
+        _waveIn = null;
     }
+
+    public void Dispose() => Stop();
 }
