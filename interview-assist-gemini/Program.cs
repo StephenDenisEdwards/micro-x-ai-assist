@@ -4,6 +4,6 @@ class Program
 	{
 		Console.WriteLine("Hello");
 
-		await GeminiInterviewMain.MainAlt();
+		// await GeminiInterviewMain.MainAlt();
 	}
 }
