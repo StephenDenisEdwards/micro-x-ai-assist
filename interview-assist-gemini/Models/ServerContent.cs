@@ -1,6 +1,6 @@
 namespace GeminiLiveConsole.Models;
 // --- DTOs for Gemini Live responses ---
-internal sealed class ServerContent
+public sealed class ServerContent
 {
 	public ModelTurn? ModelTurn { get; set; }
 	public bool? TurnComplete { get; set; }
@@ -8,7 +8,7 @@ internal sealed class ServerContent
 	public InputTranscription? InputTranscription { get; set; }
 }
 
-internal class InputTranscription
+public sealed class InputTranscription
 {
 	public string Text { get; set; }
 }

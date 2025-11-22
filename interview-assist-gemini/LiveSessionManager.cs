@@ -8,7 +8,7 @@ public sealed class LiveSessionManager
     private readonly AudioCaptureService _audio;
 
     public event Action<string>? OnTranscript;
-    public event Action<DetectedIntent>? OnIntent;
+    public event Action<DetectedIntent>? OnIntent; // currently unused with new message schema
     public event Action<double>? OnVolume;
     public event Action<Exception>? OnError;
     public event Action? OnDisconnect;
@@ -29,40 +29,36 @@ public sealed class LiveSessionManager
 
         _audio.OnAudioChunk += async chunk =>
         {
-            // Volume RMS
             var rms = ComputeRms(chunk);
             OnVolume?.Invoke(rms);
-            await _client.SendAudioChunkAsync(chunk);
+            // chunk length is bytesRecorded
+            await _client.SendAudioChunkAsync(chunk, chunk.Length);
         };
     }
 
     public Task ConnectAsync(CancellationToken ct = default) => _client.ConnectAsync(ct);
     public Task DisconnectAsync() => _client.DisconnectAsync();
 
-    private void HandleMessage(LiveServerMessage msg)
+    private void HandleMessage(GeminiMessage msg)
     {
         var transcript = msg.ServerContent?.InputTranscription?.Text;
         if (!string.IsNullOrWhiteSpace(transcript))
             OnTranscript?.Invoke(transcript);
 
-        if (msg.ToolCall?.FunctionCalls != null)
+        // Streamed model turn text parts (assistant responses)
+        var parts = msg.ServerContent?.ModelTurn?.Parts;
+        if (parts != null)
         {
-            foreach (var fc in msg.ToolCall.FunctionCalls)
+            foreach (var p in parts)
             {
-                if (fc.Name == "report_intent" && fc.Args != null)
+                if (!string.IsNullOrWhiteSpace(p.Text))
                 {
-                    var intent = new DetectedIntent
-                    {
-                        Text = fc.Args.TryGetValue("text", out var t) ? t?.ToString() ?? "" : "",
-                        Type = fc.Args.TryGetValue("type", out var tp) && tp?.ToString() == "QUESTION"
-                            ? IntentType.QUESTION : IntentType.IMPERATIVE,
-                        Answer = fc.Args.TryGetValue("answer", out var ans) ? ans?.ToString() ?? "" : ""
-                    };
-                    OnIntent?.Invoke(intent);
-                    _ = _client.SendToolResponseAsync(fc); // ack
+                    // For now treat assistant textual output as transcript as well
+                    OnTranscript?.Invoke(p.Text);
                 }
             }
         }
+        // Intent/tool handling removed; protocol no longer provides function calls in this simplified schema.
     }
 
     private static double ComputeRms(byte[] pcm16)

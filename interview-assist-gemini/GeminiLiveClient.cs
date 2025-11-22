@@ -1,7 +1,7 @@
 using System.Net.WebSockets;
 using System.Text;
+using System.Text.Json;
 using GeminiLiveConsole.Models;
-using Newtonsoft.Json;
 
 namespace GeminiLiveConsole;
 
@@ -9,7 +9,7 @@ public sealed class GeminiLiveClient : IAsyncDisposable
 {
     private readonly string _apiKey;
     private readonly string _model;
-    private readonly string? _bearerToken; // Optional OAuth2 access token if required by preview
+    private readonly string _systemPrompt;
     private ClientWebSocket _ws = new();
     private CancellationTokenSource? _cts;
     private Task? _recvTask;
@@ -17,165 +17,122 @@ public sealed class GeminiLiveClient : IAsyncDisposable
     public event Action? OnOpen;
     public event Action? OnClose;
     public event Action<Exception>? OnError;
-    public event Action<LiveServerMessage>? OnMessage;
+    public event Action<GeminiMessage>? OnMessage;
     public bool IsConnected { get; private set; }
 
-    public GeminiLiveClient(string apiKey, string model, string? bearerToken = null)
+    public GeminiLiveClient(string apiKey, string model = "gemini-2.0-flash-exp", string systemPrompt = "You are a helpful assistant. Listen to the user speaking and reply in text.")
     {
         _apiKey = apiKey;
         _model = model;
-        _bearerToken = bearerToken;
+        _systemPrompt = systemPrompt;
     }
 
-    private IEnumerable<Uri> BuildCandidateUris()
-    {
-        // We try several permutations because preview endpoints may differ.
-        var bases = new[]
-        {
-            "wss://generativelanguage.googleapis.com/v1beta/live:connect",
-            "wss://generativelanguage.googleapis.com/v1/live:connect"
-        };
-
-        foreach (var b in bases)
-        {
-            // Pattern A: key only
-            yield return new Uri(b + "?key=" + Uri.EscapeDataString(_apiKey));
-            // Pattern B: no query (if server expects header-only)
-            yield return new Uri(b);
-        }
-    }
-
+    // --- Public connect following Program.cs pattern ---
     public async Task ConnectAsync(CancellationToken ct = default)
     {
+        if (IsConnected) return;
         _cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        Exception? lastEx = null;
-        foreach (var candidate in BuildCandidateUris())
+        try
         {
-            try
-            {
-                // Fresh socket per attempt to avoid stale state
-                if (_ws.State != WebSocketState.None && _ws.State != WebSocketState.Closed)
-                {
-                    try { await _ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "retry", CancellationToken.None); } catch { }
-                }
-                _ws.Dispose();
-                _ws = new ClientWebSocket();
-                Console.WriteLine($"[Connect Attempt] {candidate}");
-                if (_bearerToken is not null)
-                {
-                    // Requires .NET 8 for SetRequestHeader.
-                    try { _ws.Options.SetRequestHeader("Authorization", $"Bearer {_bearerToken}"); } catch { /* ignore if unsupported */ }
-                    // Some services may still need API key header separate from query.
-                    try { _ws.Options.SetRequestHeader("x-goog-api-key", _apiKey); } catch { /* ignore */ }
-                }
-                await _ws.ConnectAsync(candidate, _cts.Token);
-                Console.WriteLine("[Connect] Handshake succeeded.");
-                IsConnected = true;
-                OnOpen?.Invoke();
-                await SendSetupFrameAsync(_cts.Token);
-                _recvTask = Task.Run(ReceiveLoopAsync);
-                return; // success
-            }
-            catch (WebSocketException wsex)
-            {
-                Console.Error.WriteLine($"[Handshake Fail] {candidate} -> {wsex.Message}");
-                lastEx = wsex;
-            }
-            catch (Exception ex)
-            {
-                Console.Error.WriteLine($"[Connect ERROR] {candidate} -> {ex.Message}");
-                lastEx = ex;
-            }
+            var wsUrl = $"wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key={Uri.EscapeDataString(_apiKey)}";
+            _ws = new ClientWebSocket();
+            await _ws.ConnectAsync(new Uri(wsUrl), _cts.Token);
+            IsConnected = true;
+            OnOpen?.Invoke();
+            await SendSetupFrameAsync(_cts.Token);
+            _recvTask = Task.Run(() => ReceiveLoopAsync(_cts.Token));
         }
-        OnError?.Invoke(lastEx ?? new InvalidOperationException("All connection attempts failed."));
-        await CloseInternalAsync();
+        catch (Exception ex)
+        {
+            OnError?.Invoke(ex);
+            await CloseInternalAsync();
+        }
     }
 
+    // --- Setup frame identical shape to Program.cs ---
     private async Task SendSetupFrameAsync(CancellationToken ct)
     {
-        var setup = new
+        var setupMessage = new
         {
             setup = new
             {
                 model = $"models/{_model}",
-                config = new
+                generationConfig = new
                 {
-                    responseModalities = new[] { "AUDIO" },
-                    inputAudioTranscription = new { },
-                    systemInstruction = @"You are a dedicated Conversation Monitor and Assistant. Detect QUESTION or IMPERATIVE and call report_intent. Ignore casual speech.",
-                    tools = new[]
+                    responseModalities = new[] { "TEXT" }
+                },
+                inputAudioTranscription = new { },
+                systemInstruction = new
+                {
+                    parts = new[]
                     {
-                        new { functionDeclarations = new[] { new {
-                            name = "report_intent",
-                            description = "Report detected question or imperative command.",
-                            parameters = new {
-                                type = "OBJECT",
-                                properties = new {
-                                    text = new { type = "STRING" },
-                                    type = new { type = "STRING", enumValues = new []{"QUESTION","IMPERATIVE"} },
-                                    answer = new { type = "STRING" }
-                                },
-                                required = new []{"text","type","answer"}
-                            }
-                        } } }
+                        new { text = _systemPrompt }
                     }
                 }
             }
         };
-        await SendJsonAsync(setup, ct);
+        await SendJsonAsync(setupMessage, ct);
     }
 
-    public async Task SendAudioChunkAsync(byte[] pcm16, CancellationToken ct = default)
+    // --- Stream PCM16 mono 16kHz chunks ---
+    public async Task SendAudioChunkAsync(byte[] pcm16Buffer, int bytesRecorded, CancellationToken ct = default)
     {
-        if (!IsConnected) return;
-        var frame = new
+        if (!IsConnected || _ws.State != WebSocketState.Open) return;
+        var base64 = Convert.ToBase64String(pcm16Buffer, 0, bytesRecorded);
+        var audioFrame = new
         {
             realtimeInput = new
             {
-                media = new
+                audio = new
                 {
-                    mimeType = "audio/pcm;rate=16000;channels=1",
-                    data = Convert.ToBase64String(pcm16)
+                    mimeType = "audio/pcm;rate=16000",
+                    data = base64
                 }
             }
         };
-        await SendJsonAsync(frame, ct);
+        await SendJsonAsync(audioFrame, ct);
     }
 
-    public async Task SendToolResponseAsync(ToolFunctionCall call, CancellationToken ct = default)
+    // --- Signal end of audio stream ---
+    public async Task SendAudioStreamEndAsync(CancellationToken ct = default)
     {
-        var payload = new
+        if (!IsConnected) return;
+        var endMessage = new
         {
-            toolResponse = new
+            realtimeInput = new
             {
-                functionResponses = new[]
-                {
-                    new { id = call.Id, name = call.Name, response = new { result = "logged" } }
-                }
+                audioStreamEnd = true
             }
         };
-        await SendJsonAsync(payload, ct);
+        await SendJsonAsync(endMessage, ct);
     }
 
-    private async Task SendJsonAsync(object obj, CancellationToken ct)
+    private static readonly JsonSerializerOptions JsonOpts = new()
     {
-        var json = JsonConvert.SerializeObject(obj);
+        PropertyNameCaseInsensitive = true,
+        ReadCommentHandling = JsonCommentHandling.Skip,
+        AllowTrailingCommas = true
+    };
+
+    private async Task SendJsonAsync(object payload, CancellationToken ct)
+    {
+        var json = JsonSerializer.Serialize(payload);
         var bytes = Encoding.UTF8.GetBytes(json);
-        await _ws.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, ct);
+        await _ws.SendAsync(bytes, WebSocketMessageType.Text, true, ct);
     }
 
-    private async Task ReceiveLoopAsync()
+    private async Task ReceiveLoopAsync(CancellationToken token)
     {
-        var buffer = new byte[64 * 1024];
+        var buffer = new byte[16 * 1024];
         try
         {
-            while (_ws.State == WebSocketState.Open && !_cts!.IsCancellationRequested)
+            while (!token.IsCancellationRequested && _ws.State == WebSocketState.Open)
             {
-                var ms = new MemoryStream();
-                WebSocketReceiveResult result;
+                using var ms = new MemoryStream();
+                WebSocketReceiveResult? result;
                 do
                 {
-                    result = await _ws.ReceiveAsync(buffer, _cts.Token);
+                    result = await _ws.ReceiveAsync(new ArraySegment<byte>(buffer), token);
                     if (result.MessageType == WebSocketMessageType.Close)
                     {
                         await CloseInternalAsync();
@@ -184,12 +141,23 @@ public sealed class GeminiLiveClient : IAsyncDisposable
                     ms.Write(buffer, 0, result.Count);
                 } while (!result.EndOfMessage);
 
-                var txt = Encoding.UTF8.GetString(ms.ToArray());
-                LiveServerMessage? message = null;
-                try { message = JsonConvert.DeserializeObject<LiveServerMessage>(txt); }
-                catch (Exception dex) { OnError?.Invoke(dex); }
-                if (message != null) OnMessage?.Invoke(message);
+                var data = ms.ToArray();
+                var json = Encoding.UTF8.GetString(data);
+                try
+                {
+                    var msg = JsonSerializer.Deserialize<GeminiMessage>(json, JsonOpts);
+                    if (msg != null)
+                        OnMessage?.Invoke(msg);
+                }
+                catch (JsonException jex)
+                {
+                    OnError?.Invoke(jex);
+                }
             }
+        }
+        catch (OperationCanceledException)
+        {
+            // normal
         }
         catch (Exception ex)
         {
@@ -210,8 +178,8 @@ public sealed class GeminiLiveClient : IAsyncDisposable
             try { await _ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "closing", CancellationToken.None); } catch { }
         }
         IsConnected = false;
-        OnClose?.Invoke();
         _cts?.Cancel();
+        OnClose?.Invoke();
     }
 
     public async ValueTask DisposeAsync()

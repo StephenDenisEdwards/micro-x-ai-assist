@@ -1,4 +1,4 @@
-internal sealed class UsageMetadata
+public sealed class UsageMetadata
 {
 	public int PromptTokenCount { get; set; }
 	public int ResponseTokenCount { get; set; }

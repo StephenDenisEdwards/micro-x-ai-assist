@@ -1,6 +1,6 @@
 namespace GeminiLiveConsole.Models;
 // --- DTOs for Gemini Live responses ---
-internal sealed class GeminiMessage
+public sealed class GeminiMessage
 {
 	public ServerContent? ServerContent { get; set; }
 	public UsageMetadata? UsageMetadata { get; set; }
