@@ -187,6 +187,7 @@ class Program
 		try
 		{
 			var incompleteTurn = new StringBuilder(1000);
+			int previousTranscriptLength = 0; // track previous length for clearing residual chars
 
 			while (!token.IsCancellationRequested && ws.State == WebSocketState.Open)
 			{
@@ -255,7 +256,15 @@ class Program
 					{
 						incompleteTurn.Append(msg.ServerContent.InputTranscription.Text);
 						Console.ForegroundColor = ConsoleColor.DarkGray;
-						Console.WriteLine(incompleteTurn);
+						// Overwrite same line: carriage return + transcription + padding (if shorter than before)
+						string current = incompleteTurn.ToString();
+						int pad = previousTranscriptLength - current.Length;
+						if (pad < 0) pad = 0;
+						Console.Write('\r');
+						Console.Write(current);
+						if (pad > 0) Console.Write(new string(' ', pad)); // clear leftover characters
+						previousTranscriptLength = current.Length;
+						wroteAnything = true;
 						Console.ResetColor();
 					}
 
