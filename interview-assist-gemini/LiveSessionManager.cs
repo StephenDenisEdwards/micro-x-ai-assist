@@ -1,4 +1,4 @@
-using GeminiLiveConsole.Models;
+	using GeminiLiveConsole.Models;
 
 namespace GeminiLiveConsole;
 
@@ -76,34 +76,58 @@ public sealed class LiveSessionManager
 
     private void HandleMessage_2(GeminiMessage msg)
     {
-	    var transcript = msg.ServerContent?.InputTranscription?.Text;
-	    if (!string.IsNullOrWhiteSpace(transcript))
-	    {
-		    OnTranscript?.Invoke(transcript);
-		    OnInputTranscriptionUpdate?.Invoke(transcript);
-	    }
+        var transcript = msg.ServerContent?.InputTranscription?.Text;
+        if (!string.IsNullOrWhiteSpace(transcript))
+        {
+            OnTranscript?.Invoke(transcript);
+            OnInputTranscriptionUpdate?.Invoke(transcript);
+        }
 
-		if (msg.ToolCall?.FunctionCalls != null)
-	    {
-		    foreach (var fc in msg.ToolCall.FunctionCalls)
-		    {
-			    if (fc.Name == "report_intent" && fc.Args != null)
-			    {
-				    var intent = new DetectedIntent
-				    {
-					    Text = fc.Args.TryGetValue("text", out var t) ? t?.ToString() ?? "" : "",
-					    Type = fc.Args.TryGetValue("type", out var tp) && tp?.ToString() == "QUESTION"
-						    ? IntentType.QUESTION : IntentType.IMPERATIVE,
-					    Answer = fc.Args.TryGetValue("answer", out var ans) ? ans?.ToString() ?? "" : ""
-				    };
-				    OnIntent?.Invoke(intent);
-				    _ = _client.SendToolResponseAsync(fc); // ack
-			    }
-		    }
-	    }
+        // NEW: forward streamed assistant parts (answers come here after tool ack)
+        var parts = msg.ServerContent?.ModelTurn?.Parts;
+        if (parts != null)
+        {
+            foreach (var p in parts)
+            {
+                if (!string.IsNullOrWhiteSpace(p.Text))
+                {
+                    OnTranscript?.Invoke(p.Text);
+                    OnAssistantResponsePart?.Invoke(p.Text);
+                }
+            }
+        }
+
+        if (msg.ToolCall?.FunctionCalls != null)
+        {
+            foreach (var fc in msg.ToolCall.FunctionCalls)
+            {
+                if (fc.Name == "report_intent" && fc.Args != null)
+                {
+                    var rawType = fc.Args.TryGetValue("type", out var tp) ? tp?.ToString() ?? "" : "";
+                    var intent = new DetectedIntent
+                    {
+                        Text = fc.Args.TryGetValue("text", out var t) ? t?.ToString() ?? "" : "",
+                        // Accept malformed 'QIESTIOM' as QUESTION
+                        Type = rawType is "QUESTION" or "QIESTIOM" ? IntentType.QUESTION : IntentType.IMPERATIVE,
+                        Answer = fc.Args.TryGetValue("answer", out var ans) ? ans?.ToString() ?? "" : ""
+                    };
+                    OnIntent?.Invoke(intent);
+
+                    // If answer already provided inside tool call args, surface immediately
+                    if (!string.IsNullOrWhiteSpace(intent.Answer))
+                    {
+                        OnAssistantResponsePart?.Invoke(intent.Answer);
+                        OnTranscript?.Invoke(intent.Answer);
+                    }
+
+                    // Ack tool call (so model can proceed to send answer parts if not inline)
+                    _ = _client.SendToolResponseAsync(fc);
+                }
+            }
+        }
     }
 
-	private static double ComputeRms(byte[] pcm16)
+    private static double ComputeRms(byte[] pcm16)
     {
         int samples = pcm16.Length / 2;
         if (samples == 0) return 0;
