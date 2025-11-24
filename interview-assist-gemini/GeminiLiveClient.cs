@@ -1,4 +1,5 @@
-﻿using System.Net.WebSockets;
+﻿using System.ComponentModel.DataAnnotations;
+using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
 using GeminiLiveConsole.Models;
@@ -131,8 +132,24 @@ public sealed class GeminiLiveClient : IAsyncDisposable
 					}}
 			}
 		};
+
+		// Display the setup message for debugging
+		try
+		{
+			var pretty = JsonSerializer.Serialize(setupMessage, new JsonSerializerOptions { WriteIndented = true });
+			Console.ForegroundColor = ConsoleColor.DarkGray;
+			Console.WriteLine("[GeminiLiveClient] Setup message:");
+			Console.ResetColor();
+			Console.WriteLine(pretty);
+		}
+		catch
+		{
+			// Fallback if serialization fails
+			Console.WriteLine(setupMessage?.ToString());
+		}
+
 		await SendJsonAsync(setupMessage, ct);
-	}
+    }
 
 
     private async Task SendSetupFrameAsync_2(CancellationToken ct)
