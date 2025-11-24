@@ -112,6 +112,15 @@ class Program
 			}
 		};
 
+		// Print finalized detected intent (full text + type)
+		manager.OnIntentFinal += intent =>
+		{
+			Console.WriteLine();
+			Console.ForegroundColor = ConsoleColor.Green;
+			Console.WriteLine($"Detected {intent.Type}: {intent.Text}");
+			Console.ResetColor();
+		};
+
 		manager.OnError += e =>
 		{
 			Console.WriteLine();

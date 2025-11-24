@@ -1,5 +1,6 @@
 using GeminiLiveConsole.Models;
 using System.Linq;
+using System.Collections.Generic;
 
 namespace GeminiLiveConsole;
 
@@ -11,7 +12,8 @@ public sealed class LiveSessionManager
     public event Action<string>? OnTranscript; // aggregated
     public event Action<string>? OnInputTranscriptionUpdate; // incremental microphone transcription
     public event Action<string>? OnAssistantResponsePart; // streamed assistant output (delta)
-    public event Action<DetectedIntent>? OnIntent; // currently unused
+    public event Action<DetectedIntent>? OnIntent; // per-call updates (optional)
+    public event Action<DetectedIntent>? OnIntentFinal; // finalized per turn
     public event Action<double>? OnVolume;
     public event Action<Exception>? OnError;
     public event Action? OnDisconnect;
@@ -19,6 +21,10 @@ public sealed class LiveSessionManager
 
     // Track assistant streaming state to dedupe cumulative parts
     private string _assistantLastFullText = string.Empty;
+
+    // Track pending intent (take the longest text within the turn)
+    private string _pendingIntentText = string.Empty;
+    private IntentType _pendingIntentType = IntentType.QUESTION;
 
     public LiveSessionManager(string apiKey, string model, AudioInputSource audioSource= AudioInputSource.Microphone)
     {
@@ -143,16 +149,21 @@ public sealed class LiveSessionManager
                 if (fc.Name == "report_intent" && fc.Args != null)
                 {
                     var rawType = fc.Args.TryGetValue("type", out var tp) ? tp?.ToString() ?? "" : "";
-                    var intent = new DetectedIntent
-                    {
-                        Text = fc.Args.TryGetValue("text", out var t) ? t?.ToString() ?? "" : "",
-                        // Accept malformed 'QIESTIOM' as QUESTION
-                        Type = rawType is "QUESTION" or "QIESTIOM" ? IntentType.QUESTION : IntentType.IMPERATIVE,
-                        Answer = fc.Args.TryGetValue("answer", out var ans) ? ans?.ToString() ?? "" : ""
-                    };
-                    OnIntent?.Invoke(intent);
+                    var textVal = fc.Args.TryGetValue("text", out var t) ? t?.ToString() ?? "" : "";
 
-                    // Do NOT emit intent.Answer here to avoid duplicate output; the model will stream it via ModelTurn
+                    var type = rawType is "QUESTION" or "QIESTIOM" ? IntentType.QUESTION : IntentType.IMPERATIVE;
+
+                    // Track the longest text seen for the turn (likely the full question/imperative)
+                    if (!string.IsNullOrWhiteSpace(textVal) && textVal.Length >= _pendingIntentText.Length)
+                    {
+                        _pendingIntentText = textVal;
+                        _pendingIntentType = type;
+                    }
+
+                    // Optional: emit interim updates for live UI (can be removed to only show final)
+                    OnIntent?.Invoke(new DetectedIntent { Text = textVal, Type = type });
+
+                    // Ack so model can proceed
                     _ = _client.SendToolResponseAsync(fc);
                 }
             }
@@ -162,7 +173,19 @@ public sealed class LiveSessionManager
         if (msg.ServerContent?.TurnComplete == true)
         {
             OnAssistantTurnComplete?.Invoke();
+
+            if (!string.IsNullOrWhiteSpace(_pendingIntentText))
+            {
+                OnIntentFinal?.Invoke(new DetectedIntent
+                {
+                    Text = _pendingIntentText,
+                    Type = _pendingIntentType
+                });
+            }
+
             _assistantLastFullText = string.Empty;
+            _pendingIntentText = string.Empty;
+            _pendingIntentType = IntentType.QUESTION;
         }
     }
 
