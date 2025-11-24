@@ -37,6 +37,11 @@ public sealed class GeminiLiveClient : IAsyncDisposable
         try
         {
             var wsUrl = $"wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key={Uri.EscapeDataString(_apiKey)}";
+            // Output API URI on startup
+            Console.ForegroundColor = ConsoleColor.DarkGray;
+            Console.WriteLine($"[GeminiLiveClient] API URI: {wsUrl}");
+            Console.ResetColor();
+
             _ws = new ClientWebSocket();
             await _ws.ConnectAsync(new Uri(wsUrl), _cts.Token);
             IsConnected = true;
@@ -52,10 +57,10 @@ public sealed class GeminiLiveClient : IAsyncDisposable
     }
 
     private static string _answerInstructions =
-	    "Answer in 1–2 sentences.\n" +
 	    "You are an answer engine.\n" +
-	    "If in doubt, all questions relate to .NET and C# (C Sharp).\n" +
-	    "There will be no questions relating to C. Treat these as referring to C# (C Sharp).\n" +
+	    "Answer in 1–2 sentences. Follow up question can be much more detailed.\n" +
+	    "All questions relate to .NET and C# (C Sharp).\n" +
+//	    "There will be no questions relating to C. Treat these as referring to C# (C Sharp).\n" +
 	    "Use concise, technically precise language.\n" +
 	    "If you cannot find an answer, say 'I don't know.'\n";
 	//"Use LAST_QUESTION_ANSWER as the last question and answer if the CURRENT_QUERY is a follow on question.\n" +
