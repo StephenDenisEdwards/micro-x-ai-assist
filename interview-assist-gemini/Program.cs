@@ -86,13 +86,30 @@ class Program
 			Console.ResetColor();
 		};
 
+		// Render assistant output as a single streaming line
+		var assistantLineStarted = false;
 		manager.OnAssistantResponsePart += part =>
 		{
-			Console.WriteLine();
+			if (!assistantLineStarted)
+			{
+				Console.WriteLine();
+				Console.ForegroundColor = ConsoleColor.Cyan;
+				Console.Write("Assistant: ");
+				assistantLineStarted = true;
+			}
 			Console.ForegroundColor = ConsoleColor.Cyan;
-			Console.WriteLine("Assistant: " + part);
+			Console.Write(part);
 			Console.ResetColor();
 			lastTranscriptionLength = 0;
+		};
+
+		manager.OnAssistantTurnComplete += () =>
+		{
+			if (assistantLineStarted)
+			{
+				Console.WriteLine();
+				assistantLineStarted = false;
+			}
 		};
 
 		manager.OnError += e =>

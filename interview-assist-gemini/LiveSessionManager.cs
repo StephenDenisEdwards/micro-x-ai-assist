@@ -1,4 +1,5 @@
 using GeminiLiveConsole.Models;
+using System.Linq;
 
 namespace GeminiLiveConsole;
 
@@ -9,11 +10,15 @@ public sealed class LiveSessionManager
 
     public event Action<string>? OnTranscript; // aggregated
     public event Action<string>? OnInputTranscriptionUpdate; // incremental microphone transcription
-    public event Action<string>? OnAssistantResponsePart; // streamed assistant output
+    public event Action<string>? OnAssistantResponsePart; // streamed assistant output (delta)
     public event Action<DetectedIntent>? OnIntent; // currently unused
     public event Action<double>? OnVolume;
     public event Action<Exception>? OnError;
     public event Action? OnDisconnect;
+    public event Action? OnAssistantTurnComplete; // raised when TurnComplete=true
+
+    // Track assistant streaming state to dedupe cumulative parts
+    private string _assistantLastFullText = string.Empty;
 
     public LiveSessionManager(string apiKey, string model, AudioInputSource audioSource= AudioInputSource.Microphone)
     {
@@ -68,7 +73,7 @@ public sealed class LiveSessionManager
         {
             foreach (var p in parts)
             {
-                if (!string.IsNullOrWhiteSpace(p.Text))
+                if (!string.IsNullOrEmpty(p.Text))
                 {
                     // For now treat assistant textual output as transcript as well
                     OnTranscript?.Invoke(p.Text);
@@ -88,16 +93,45 @@ public sealed class LiveSessionManager
             OnInputTranscriptionUpdate?.Invoke(transcript);
         }
 
-        // NEW: forward streamed assistant parts (answers come here after tool ack)
+        // Streamed assistant parts may be cumulative and may include whitespace-only parts.
         var parts = msg.ServerContent?.ModelTurn?.Parts;
         if (parts != null)
         {
-            foreach (var p in parts)
+            // Preserve whitespace-only parts to avoid losing spaces between tokens.
+            var fullText = string.Concat(parts.Select(p => p.Text ?? string.Empty));
+            if (fullText.Length > 0)
             {
-                if (!string.IsNullOrWhiteSpace(p.Text))
+                // Compute longest common prefix between previous and current text
+                int lcp = 0;
+                int max = Math.Min(_assistantLastFullText.Length, fullText.Length);
+                while (lcp < max && _assistantLastFullText[lcp] == fullText[lcp]) lcp++;
+
+                if (fullText.Length > _assistantLastFullText.Length && lcp == _assistantLastFullText.Length)
                 {
-                    OnTranscript?.Invoke(p.Text);
-                    OnAssistantResponsePart?.Invoke(p.Text);
+                    // Simple append case
+                    var delta = fullText.Substring(_assistantLastFullText.Length);
+                    _assistantLastFullText = fullText;
+                    if (delta.Length > 0)
+                    {
+                        OnAssistantResponsePart?.Invoke(delta);
+                        OnTranscript?.Invoke(delta);
+                    }
+                }
+                else if (fullText.Length >= _assistantLastFullText.Length && lcp < fullText.Length)
+                {
+                    // Re-edit within already printed text; emit only the non-overlapping tail
+                    var delta = fullText.Substring(lcp);
+                    _assistantLastFullText = fullText;
+                    if (delta.Length > 0)
+                    {
+                        OnAssistantResponsePart?.Invoke(delta);
+                        OnTranscript?.Invoke(delta);
+                    }
+                }
+                else if (fullText.Length < _assistantLastFullText.Length)
+                {
+                    // Model rewrote and got shorter; update state but do not attempt to backspace the console
+                    _assistantLastFullText = fullText;
                 }
             }
         }
@@ -118,17 +152,17 @@ public sealed class LiveSessionManager
                     };
                     OnIntent?.Invoke(intent);
 
-                    // If answer already provided inside tool call args, surface immediately
-                    if (!string.IsNullOrWhiteSpace(intent.Answer))
-                    {
-                        OnAssistantResponsePart?.Invoke(intent.Answer);
-                        OnTranscript?.Invoke(intent.Answer);
-                    }
-
-                    // Ack tool call (so model can proceed to send answer parts if not inline)
+                    // Do NOT emit intent.Answer here to avoid duplicate output; the model will stream it via ModelTurn
                     _ = _client.SendToolResponseAsync(fc);
                 }
             }
+        }
+
+        // When the model signals end of turn, reset streaming state and notify UI
+        if (msg.ServerContent?.TurnComplete == true)
+        {
+            OnAssistantTurnComplete?.Invoke();
+            _assistantLastFullText = string.Empty;
         }
     }
 
