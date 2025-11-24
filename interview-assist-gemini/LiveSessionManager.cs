@@ -26,6 +26,9 @@ public sealed class LiveSessionManager
     private string _pendingIntentText = string.Empty;
     private IntentType _pendingIntentType = IntentType.QUESTION;
 
+    // Capture full answer provided inline via tool call (may be more complete than streamed parts)
+    private string _pendingToolAnswer = string.Empty;
+
     public LiveSessionManager(string apiKey, string model, AudioInputSource audioSource= AudioInputSource.Microphone)
     {
         _client = new GeminiLiveClient(apiKey, model);
@@ -150,6 +153,7 @@ public sealed class LiveSessionManager
                 {
                     var rawType = fc.Args.TryGetValue("type", out var tp) ? tp?.ToString() ?? "" : "";
                     var textVal = fc.Args.TryGetValue("text", out var t) ? t?.ToString() ?? "" : "";
+                    var answerVal = fc.Args.TryGetValue("answer", out var ans) ? ans?.ToString() ?? "" : "";
 
                     var type = rawType is "QUESTION" or "QIESTIOM" ? IntentType.QUESTION : IntentType.IMPERATIVE;
 
@@ -160,7 +164,15 @@ public sealed class LiveSessionManager
                         _pendingIntentType = type;
                     }
 
-                    // Optional: emit interim updates for live UI (can be removed to only show final)
+                    // Capture the full answer (we will reconcile at turn end)
+                    if (!string.IsNullOrWhiteSpace(answerVal))
+                    {
+                        // Prefer the longest answer seen
+                        if (answerVal.Length > _pendingToolAnswer.Length)
+                            _pendingToolAnswer = answerVal;
+                    }
+
+                    // Optional interim updates
                     OnIntent?.Invoke(new DetectedIntent { Text = textVal, Type = type });
 
                     // Ack so model can proceed
@@ -169,7 +181,7 @@ public sealed class LiveSessionManager
             }
         }
 
-        // When the model signals end of turn, reset streaming state and notify UI
+        // When the model signals end of turn, reconcile streaming vs tool answer, then reset state
         if (msg.ServerContent?.TurnComplete == true)
         {
             OnAssistantTurnComplete?.Invoke();
@@ -183,9 +195,36 @@ public sealed class LiveSessionManager
                 });
             }
 
+            // Emit missing suffix of tool answer if any
+            if (!string.IsNullOrWhiteSpace(_pendingToolAnswer))
+            {
+                if (string.IsNullOrWhiteSpace(_assistantLastFullText))
+                {
+                    // Nothing streamed; emit full answer
+                    OnAssistantResponsePart?.Invoke(_pendingToolAnswer);
+                    OnTranscript?.Invoke(_pendingToolAnswer);
+                }
+                else if (_pendingToolAnswer.StartsWith(_assistantLastFullText) && _pendingToolAnswer.Length > _assistantLastFullText.Length)
+                {
+                    var tail = _pendingToolAnswer.Substring(_assistantLastFullText.Length);
+                    if (tail.Length > 0)
+                    {
+                        OnAssistantResponsePart?.Invoke(tail);
+                        OnTranscript?.Invoke(tail);
+                    }
+                }
+                else if (_pendingToolAnswer != _assistantLastFullText)
+                {
+                    // Divergent; emit full tool answer to ensure completeness (could duplicate; acceptable for correctness)
+                    OnAssistantResponsePart?.Invoke(_pendingToolAnswer);
+                    OnTranscript?.Invoke(_pendingToolAnswer);
+                }
+            }
+
             _assistantLastFullText = string.Empty;
             _pendingIntentText = string.Empty;
             _pendingIntentType = IntentType.QUESTION;
+            _pendingToolAnswer = string.Empty;
         }
     }
 
