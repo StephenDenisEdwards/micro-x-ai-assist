@@ -69,6 +69,14 @@ class Program
 		var assistantBuffer = new StringBuilder();
 		var assistantStreamingActive = false;
 
+		manager.OnCodeExample += t =>
+		{
+			Console.ForegroundColor = ConsoleColor.DarkGray;
+			Console.WriteLine("CODE:");
+			Console.WriteLine(t);
+			Console.ResetColor();
+		};
+
 		manager.OnInputTranscriptionUpdate += t =>
 		{
 			Console.ForegroundColor = ConsoleColor.DarkGray;
@@ -139,6 +147,11 @@ class Program
 
 		await manager.DisconnectAsync();
 		Console.WriteLine("Done.");
+	}
+
+	private static void Manager_OnCodeExample(string obj)
+	{
+		throw new NotImplementedException();
 	}
 
 	private static AudioInputSource MapSource(string raw) => raw.ToLowerInvariant() switch

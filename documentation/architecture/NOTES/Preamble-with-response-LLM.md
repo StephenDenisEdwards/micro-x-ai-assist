@@ -156,3 +156,108 @@ That will behave much more reliably than “dump raw text and hope the model pic
 ---
 
 If you want, you can paste one of your real prompt packs (with `recent_finals`, `recent_acts`, `open_items`, `question`) and I can rewrite it into a “CONTEXT + CURRENT_QUERY” layout that works smoothly with Responses models.
+
+
+
+
+Perfect — you’re describing  **context-linked or preambled questions** , where each question  **depends on a preceding statement** , scenario, or premise.
+
+These are excellent for testing **context retention** and  **question-detection in discourse** , because the interrogative depends on the preamble to make sense (e.g.  *“In this code snippet… what happens next?”* ).
+
+Below you’ll find  **20 C# preambled questions** , grouped into several common contexts you’d likely encounter in a real conversation, interview, or voice transcript.
+
+---
+
+## 🧩 **C# Questions with Contextual Preambles**
+
+### 🧠 Section 1: Code-Context Preambles
+
+1. *In the following code, two tasks are awaited in sequence rather than in parallel.*
+
+   ➤ Why might this approach reduce performance?
+2. *Here, the developer is using `Task.Delay(0)` to yield control in an async method.*
+
+   ➤ What is the effect of doing this inside a CPU-bound operation?
+3. *Given a loop that captures the iteration variable inside a lambda expression…*
+
+   ➤ What output would you expect and why?
+4. *The code defines a `readonly struct` passed by reference.*
+
+   ➤ How does this improve performance compared to a regular struct?
+5. *A `using` declaration is used instead of a traditional `using` block.*
+
+   ➤ How do their lifetimes differ at runtime?
+
+---
+
+### ⚙️ Section 2: Design / API Preambles
+
+6. *Suppose you have a service class injected into a controller via dependency injection.*
+
+   ➤ What happens if the service is registered as transient instead of singleton?
+7. *You’re designing a data access layer that uses Entity Framework Core.*
+
+   ➤ How can connection pooling impact scalability here?
+8. *Assume you’re building an API that streams results using `IAsyncEnumerable<T>`.*
+
+   ➤ How does this differ from returning a regular `IEnumerable<T>`?
+9. *Imagine two microservices communicating over HTTP.*
+
+   ➤ Why might you prefer a strongly typed client generated from OpenAPI?
+10. *A repository class exposes both synchronous and asynchronous methods.*
+
+    ➤ When should you prefer the async versions?
+
+---
+
+### 🧮 Section 3: Runtime & Memory Preambles
+
+11. *This application allocates millions of short-lived objects per second.*
+
+    ➤ How would you tune garbage collection for better performance?
+12. *You notice frequent large object heap allocations during deserialization.*
+
+    ➤ What kind of data structures might cause this?
+13. *A background thread tries to update a UI label in a WPF app.*
+
+    ➤ Why does this cause a runtime exception?
+14. *In .NET 8, native AOT compilation is introduced for faster startup.*
+
+    ➤ What trade-offs does this bring compared to JIT compilation?
+15. *A developer marks a method with `[MethodImpl(MethodImplOptions.AggressiveInlining)]`.*
+
+    ➤ What effect does this attribute have on performance and debugging?
+
+---
+
+### 🧰 Section 4: Concurrency & Threading Preambles
+
+16. *Two threads try to update the same list concurrently.*
+
+    ➤ Why can this cause unpredictable results even if each thread adds only one item?
+17. *A developer wraps an entire method body in `lock(this)`.*
+
+    ➤ Why is that considered a bad practice?
+18. *You’re implementing a producer-consumer queue with `BlockingCollection<T>`.*
+
+    ➤ How does it differ from using `ConcurrentQueue<T>` directly?
+19. *An async method doesn’t return until after the caller context completes.*
+
+    ➤ What might be missing in its implementation?
+20. *A unit test fails intermittently when multiple async tasks run together.*
+
+    ➤ How could synchronization primitives resolve this issue?
+
+---
+
+### ✅ **Why these are valuable**
+
+Each item:
+
+* Begins with a **preamble** — a narrative, observation, or partial scenario.
+* Ends with an **interrogative** that **depends** on the preamble for full meaning.
+* Simulates *real* technical conversation flow — perfect for speech recognition or context retention tests.
+
+---
+
+Would you like me to generate the **imperative equivalents** of these same 20 (e.g., “Given the following code,  *explain why performance drops* ” instead of “Why might this approach reduce performance?”) — so you can test both **instructional** and **question** detection on identical contexts?
