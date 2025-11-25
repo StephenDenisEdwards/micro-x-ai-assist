@@ -173,6 +173,10 @@ public sealed class LiveSessionManager
 
 			if (!string.IsNullOrWhiteSpace(_pendingIntentText))
 			{
+				//Console.ForegroundColor = ConsoleColor.Red;
+				//Console.WriteLine(_pendingIntentText);
+				//Console.ResetColor();
+				
 				OnIntentFinal?.Invoke(new DetectedIntent
 				{
 					Text = _pendingIntentText,
@@ -196,10 +200,10 @@ public sealed class LiveSessionManager
 			if (!string.IsNullOrWhiteSpace(_pendingToolCode))
 			{
 				// Remove the C# markdown fences (```csharp and ```) before emitting the raw code.
-				var cleanedCode = _pendingToolCode
-					.Replace("```csharp", "")
-					.Replace("```", "")
-					.Trim();
+				//var cleanedCode = _pendingToolCode
+				//	.Replace("```csharp", "")
+				//	.Replace("```", "")
+				//	.Trim();
 
 				OnCodeExample?.Invoke(_pendingToolCode);
 			}

@@ -61,7 +61,7 @@ public sealed class GeminiLiveClient : IAsyncDisposable
 			"You are a C# and .NET expert. Your primary goal is to provide a complete and detailed natural language explanation to the user's query via the main streaming output. " +
 			"At the end of your response, you MUST call the 'report_technical_response' function. " +
 			"The 'answer' parameter of this function should contain the full natural language answer you provided. " +
-			"The 'console_code' parameter must contain a complete, runnable C# console application that demonstrates the concept, wrapped in C# markdown fences. If no code is relevant, provide a comment stating that.";
+			"The 'console_code' parameter must contain a complete, runnable C# console application that demonstrates the concept, wrapped in C# markdown fences. If no code is relevant, you must return a C# comment stating that, for example: '// No code is applicable for this query.'";
 
 		// Instruction for the tool's 'answer' field (simple)
 		string answerInstructions =
@@ -69,7 +69,7 @@ public sealed class GeminiLiveClient : IAsyncDisposable
 
 		// Instruction for the tool's 'console_code' field (harmonized with the system prompt)
 		string codeDescription =
-			"A complete, runnable C# console application (Program.cs content) that illustrates the answer. The code MUST be wrapped in ```csharp ... ``` markdown fences. If no code is applicable, this field should contain only a C# comment, like '// No code example is relevant.'";
+			"A complete, runnable C# console application (Program.cs content) that illustrates the answer. The code MUST be wrapped in ```csharp ... ``` markdown fences. If no code is applicable, this field MUST contain a C# comment explaining why, such as '// No code example is relevant.'";
 
 		var setupMessage = new
 		{
