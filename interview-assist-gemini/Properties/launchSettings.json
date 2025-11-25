@@ -2,7 +2,7 @@
   "profiles": {
     "interview-assist-gemini": {
       "commandName": "Project",
-      "commandLineArgs": "--source loopback"
+      "commandLineArgs": "--source mic"
     }
   }
 }

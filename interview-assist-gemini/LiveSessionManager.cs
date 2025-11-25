@@ -169,14 +169,11 @@ public sealed class LiveSessionManager
 		// --- Turn Completion Logic (Fixed Logic) ---
 		if (msg.ServerContent?.TurnComplete == true)
 		{
-			OnAssistantTurnComplete?.Invoke();
+			// Fire events in the desired order: Question -> Answer -> Code
 
+			// 1. Fire Intent (Question)
 			if (!string.IsNullOrWhiteSpace(_pendingIntentText))
 			{
-				//Console.ForegroundColor = ConsoleColor.Red;
-				//Console.WriteLine(_pendingIntentText);
-				//Console.ResetColor();
-				
 				OnIntentFinal?.Invoke(new DetectedIntent
 				{
 					Text = _pendingIntentText,
@@ -184,7 +181,8 @@ public sealed class LiveSessionManager
 				});
 			}
 
-			// 🌟 FIX FOR TRUNCATED ANSWERS: Prioritize the final tool answer 🌟
+			// 2. Fire Answer
+			// Prioritize the final tool answer if available
 			if (!string.IsNullOrWhiteSpace(_pendingToolAnswer))
 			{
 				// To prevent reconciliation issues and ensure the full answer is shown:
@@ -193,18 +191,14 @@ public sealed class LiveSessionManager
 
 				// 2. Emit the definitive, complete answer from the tool call.
 				OnAssistantResponsePart?.Invoke(_pendingToolAnswer);
-				OnTranscript?.Invoke(_pendingToolAnswer);
 			}
+			// OnAssistantTurnComplete will be responsible for rendering whatever is in the buffer.
+			OnAssistantTurnComplete?.Invoke();
 
-			// 🌟 EMIT FINAL CODE OUTPUT (The code is complete now) 🌟
+
+			// 3. Fire Code
 			if (!string.IsNullOrWhiteSpace(_pendingToolCode))
 			{
-				// Remove the C# markdown fences (```csharp and ```) before emitting the raw code.
-				//var cleanedCode = _pendingToolCode
-				//	.Replace("```csharp", "")
-				//	.Replace("```", "")
-				//	.Trim();
-
 				OnCodeExample?.Invoke(_pendingToolCode);
 			}
 

@@ -71,9 +71,12 @@ class Program
 
 		manager.OnCodeExample += t =>
 		{
-			Console.ForegroundColor = ConsoleColor.DarkGray;
-			Console.WriteLine("CODE:");
-			Console.WriteLine(t);
+			Console.ForegroundColor = ConsoleColor.Magenta;
+			Console.WriteLine("\n--- CODE ---");
+			// Basic cleaning of markdown fences for direct console output
+			var cleanedCode = t.Replace("```csharp", "").Replace("```", "").Trim();
+			Console.WriteLine(cleanedCode);
+			Console.WriteLine("--- END CODE ---\n");
 			Console.ResetColor();
 		};
 
@@ -88,7 +91,6 @@ class Program
 			Console.ResetColor();
 		};
 
-		// Accumulate deltas instead of printing raw markdown fragments
 		manager.OnAssistantResponsePart += part =>
 		{
 			assistantBuffer.Append(part);
@@ -99,16 +101,20 @@ class Program
 		manager.OnAssistantTurnComplete += () =>
 		{
 			if (!assistantStreamingActive) return;
-			Console.WriteLine();
-			RenderMarkdownToConsole("Assistant", assistantBuffer.ToString());
+			Console.WriteLine(); // Newline before assistant answer
+			Console.ForegroundColor = ConsoleColor.Cyan;
+			Console.WriteLine("Assistant:");
+			Console.ResetColor();
+			Console.WriteLine(assistantBuffer.ToString());
 			assistantBuffer.Clear();
 			assistantStreamingActive = false;
 		};
 
 		manager.OnIntentFinal += intent =>
 		{
-			Console.ForegroundColor = intent.Type == IntentType.QUESTION ? ConsoleColor.Green : ConsoleColor.Yellow;
-			Console.WriteLine($"Detected {intent.Type}: {intent.Text}");
+			Console.WriteLine(); // Start on a new line
+			Console.ForegroundColor = ConsoleColor.Green;
+			Console.WriteLine($"Question: {intent.Text}");
 			Console.ResetColor();
 		};
 
@@ -161,103 +167,15 @@ class Program
 		_ => AudioInputSource.Microphone
 	};
 
-	// Basic markdown renderer for console with bold colouring
+	// This complex renderer is no longer needed with the simplified output.
+	// Keeping the method stubs to avoid breaking references if any exist, but clearing the bodies.
 	private static void RenderMarkdownToConsole(string title, string markdown)
 	{
-		Console.ForegroundColor = ConsoleColor.Cyan;
-		Console.WriteLine($"{title}:");
-		Console.ResetColor();
-
-		var lines = markdown.Replace("\r", string.Empty).Split('\n');
-		bool inCode = false;
-		string codeFenceLang = string.Empty;
-		var boldRegex = new Regex(@"\*\*(.+?)\*\*");
-		foreach (var rawLine in lines)
-		{
-			var line = rawLine;
-			if (line.StartsWith("```"))
-			{
-				if (!inCode)
-				{
-					inCode = true;
-					codeFenceLang = line.Length > 3 ? line[3..].Trim() : string.Empty;
-					Console.ForegroundColor = ConsoleColor.DarkGray;
-					Console.WriteLine($"--- code ({codeFenceLang}) ---");
-					Console.ResetColor();
-				}
-				else
-				{
-					inCode = false;
-					Console.ForegroundColor = ConsoleColor.DarkGray;
-					Console.WriteLine("--- end code ---");
-					Console.ResetColor();
-				}
-				continue;
-			}
-
-			if (inCode)
-			{
-				Console.ForegroundColor = ConsoleColor.Magenta;
-				Console.WriteLine(line);
-				Console.ResetColor();
-				continue;
-			}
-
-			if (line.StartsWith("#"))
-			{
-				int level = line.TakeWhile(c => c == '#').Count();
-				var text = line[level..].Trim();
-				Console.ForegroundColor = level switch { 1 => ConsoleColor.Yellow, 2 => ConsoleColor.Yellow, _ => ConsoleColor.DarkYellow };
-				Console.WriteLine(text.ToUpperInvariant());
-				Console.ResetColor();
-				continue;
-			}
-
-			if (line.StartsWith("- ") || line.StartsWith("* "))
-			{
-				WriteBoldProcessed("  • " + line[2..], boldRegex);
-				continue;
-			}
-
-			// Numbered list (simple)
-			if (char.IsDigit(line.FirstOrDefault()) && line.Contains('.') && line.IndexOf('.') < 4)
-			{
-				WriteBoldProcessed("  " + line, boldRegex);
-				continue;
-			}
-
-			// Inline code simplification: wrap `code` with brackets
-			if (line.Contains('`'))
-			{
-				line = Regex.Replace(line, "`([^`]+)`", m => "[" + m.Groups[1].Value + "]");
-			}
-
-			WriteBoldProcessed(line, boldRegex);
-		}
+		// No-op
 	}
 
 	private static void WriteBoldProcessed(string line, Regex boldRegex)
 	{
-		var matches = boldRegex.Matches(line);
-		if (matches.Count == 0)
-		{
-			Console.WriteLine(line);
-			return;
-		}
-		int lastIndex = 0;
-		foreach (Match m in matches)
-		{
-			if (m.Index > lastIndex)
-			{
-				Console.Write(line.Substring(lastIndex, m.Index - lastIndex));
-			}
-			Console.ForegroundColor = ConsoleColor.Yellow;
-			Console.Write(m.Groups[1].Value); // bold content
-			Console.ResetColor();
-			lastIndex = m.Index + m.Length;
-		}
-		if (lastIndex < line.Length)
-			Console.Write(line.Substring(lastIndex));
-		Console.WriteLine();
+		// No-op
 	}
 }
