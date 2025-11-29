@@ -11,6 +11,19 @@ class Program
 {
 	static async Task Main(string[] args)
 	{
+		var configBuilder = new ConfigurationBuilder().AddUserSecrets<Program>();
+		var configuration = configBuilder.Build();
+		var apiGeminiKey = Environment.GetEnvironmentVariable("GEMINI_API_KEY") ?? configuration["GoogleGemini:ApiKey"];
+		var apiOpenAiKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY") ?? configuration["OpenAI:ApiKey"];
+
+		await OpenAIRealtimeAPI.Go(apiOpenAiKey);
+		//await GeminiLiveAPI.Go(apiGeminiKey);
+		//await GeminiFunctionCallingExample.Start();
+		//await Start(args);
+	}
+
+	static async Task Start(string[] args)
+	{
 		var rootCommand = new RootCommand("Gemini Live Interview Assist console client");
 
 		var sourceOption = new Option<string>("--source", "-s")

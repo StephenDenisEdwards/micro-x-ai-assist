@@ -52,16 +52,142 @@ public sealed class GeminiLiveClient : IAsyncDisposable
 		}
 	}
 
-	public async Task SendSetupFrameAsync(CancellationToken ct)
+	private async Task SendSetupFrameAsync(CancellationToken ct)
+	{
+		var setupMessage = new
+		{
+			setup = new
+			{
+				model = "models/gemini-2.0-flash-exp",
+				generationConfig = new
+				{
+					responseModalities = new[] { "TEXT" },
+					temperature = 0.7,
+					maxOutputTokens = 8192
+				},
+				inputAudioTranscription = new { },
+
+				//systemInstruction = new
+				//{
+				//	parts = new[]
+				//	{
+				//		new
+				//		{
+				//			text = "You are a C# and .NET expert. For every query, you MUST call the " +
+				//			       "'report_technical_response' function with a complete explanation and code example."
+				//		}
+				//	}
+				//},
+				systemInstruction = new
+				{
+					role = "system",
+					parts = new[]
+					{
+						new { text = "You are a C# and .NET expert. For every query, you MUST call the " +
+										       "'report_technical_response' function with a complete explanation and code example." }
+					}
+				},
+				tools = new[]
+				{
+					new
+					{
+						function_declarations = new[]
+						{
+							new
+							{
+								name = "report_technical_response",
+								description = "Reports the technical response with explanation and runnable code",
+								parameters = new
+								{
+									type = "object",
+									properties = new
+									{
+										answer = new
+										{
+											type = "string",
+											description = "Complete natural language explanation of the concept"
+										},
+										console_code = new
+										{
+											type = "string",
+											description = "Complete, runnable C# console application code demonstrating the concept, " +
+											              "wrapped in ```csharp markdown fences"
+										}
+									},
+									required = new[] { "answer", "console_code" }
+								}
+							}
+						}
+					}
+				},
+				//toolConfig = new
+				//{
+				//	functionCallingConfig = new
+				//	{
+				//		mode = "ANY" // Force function calling
+				//	}
+				//},
+				//generationConfig = new
+				//{
+				//	temperature = 0.7,
+				//	maxOutputTokens = 8192
+				//}
+			}
+		};
+
+		// --- Debug/Serialization Logic ---
+		try
+		{
+			var pretty = JsonSerializer.Serialize(setupMessage, new JsonSerializerOptions { WriteIndented = true });
+			Console.ForegroundColor = ConsoleColor.DarkGray;
+			Console.WriteLine("[GeminiLiveClient] Setup message:");
+			Console.ResetColor();
+			Console.WriteLine(pretty);
+		}
+		catch
+		{
+			Console.WriteLine("Failed to serialize setup message.");
+		}
+
+		await SendJsonAsync(setupMessage, ct);
+
+		//var json = JsonSerializer.Serialize(setupMessage);
+		//var bytes = Encoding.UTF8.GetBytes(json);
+		//await ws.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, CancellationToken.None);
+		//Console.WriteLine("Setup message sent");
+	}
+
+	public async Task SendSetupFrameAsync_1(CancellationToken ct)
 	{
 		// 🌟 FINAL, STABLE SYSTEM PROMPT 🌟
 		// Instructs the model to put the ANSWER in the stream and the CODE in the tool call,
 		// but explicitly allows markdown fences for compliance.
+		// WORKS SOMETIMES
+		//string systemPrompt =
+		//	"* You are a C# and .NET expert. Your primary goal is to provide a complete and detailed natural language " +
+		//	"explanation to the user's query via the main streaming output." +
+		//	"" +
+		//	"* At the end of your response, you MUST ALWAYS call the 'report_technical_response' function. " +
+		//	"	The 'answer' parameter of this function should contain the full natural language answer you provide. " +
+		//	"	The 'console_code' parameter must contain a complete, runnable C# console application that demonstrates the concept, wrapped in C# markdown fences. If no code is relevant, you must return a C# comment stating that, for example: '// No code is applicable for this query.'";
+		//string systemPrompt =
+		//	"You are a C# and .NET expert. Your goal is to answer the user's query thoroughly and accurately.\n" +
+		//	"\n" +
+		//	"Response format:\n" +
+		//	"1. First, provide your complete natural language explanation in the streaming output.\n" +
+		//	"2. After completing your explanation, call the 'report_technical_response' function with:\n" +
+		//	"   - 'answer': The same complete explanation you just provided\n" +
+		//	"   - 'console_code': A complete, runnable C# console application demonstrating the concept, " +
+		//	"formatted as a code block with ```csharp fences. If no code is applicable, use: ```csharp\n// No code applicable for this query.\n```";
+
 		string systemPrompt =
-			"* You are a C# and .NET expert. Your primary goal is to provide a complete and detailed natural language explanation to the user's query via the main streaming output. " +
-			"* At the end of your response, you MUST call the 'report_technical_response' function. " +
-			"* The 'answer' parameter of this function should contain the full natural language answer you provided. " +
-			"* The 'console_code' parameter must contain a complete, runnable C# console application that demonstrates the concept, wrapped in C# markdown fences. If no code is relevant, you must return a C# comment stating that, for example: '// No code is applicable for this query.'";
+			"You are a C# and .NET expert. Respond to queries by calling the 'report_technical_response' function.\n" +
+			"\n" +
+			"Parameters:\n" +
+			"- 'answer': A complete, detailed natural language explanation of the concept\n" +
+			"- 'console_code': A complete, runnable C# console application demonstrating the concept, " +
+			"formatted with ```csharp markdown fences. If no code applies, return: ```csharp\n// No code applicable for this query.\n```";
+
 
 		// Instruction for the tool's 'answer' field (simple)
 		string answerInstructions =
