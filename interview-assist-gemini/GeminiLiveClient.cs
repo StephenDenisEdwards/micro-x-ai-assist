@@ -58,18 +58,20 @@ public sealed class GeminiLiveClient : IAsyncDisposable
 		// Instructs the model to put the ANSWER in the stream and the CODE in the tool call,
 		// but explicitly allows markdown fences for compliance.
 		string systemPrompt =
-			"You are a C# and .NET expert. Your primary goal is to provide a complete and detailed natural language explanation to the user's query via the main streaming output. " +
-			"At the end of your response, you MUST call the 'report_technical_response' function. " +
-			"The 'answer' parameter of this function should contain the full natural language answer you provided. " +
-			"The 'console_code' parameter must contain a complete, runnable C# console application that demonstrates the concept, wrapped in C# markdown fences. If no code is relevant, you must return a C# comment stating that, for example: '// No code is applicable for this query.'";
+			"* You are a C# and .NET expert. Your primary goal is to provide a complete and detailed natural language explanation to the user's query via the main streaming output. " +
+			"* At the end of your response, you MUST call the 'report_technical_response' function. " +
+			"* The 'answer' parameter of this function should contain the full natural language answer you provided. " +
+			"* The 'console_code' parameter must contain a complete, runnable C# console application that demonstrates the concept, wrapped in C# markdown fences. If no code is relevant, you must return a C# comment stating that, for example: '// No code is applicable for this query.'";
 
 		// Instruction for the tool's 'answer' field (simple)
 		string answerInstructions =
-			"The complete, natural language answer to the user's query. This should match the content streamed in the main response.";
+			//"The complete, natural language answer to the user's query. This should match the content streamed in the main response." +
+			"";
 
 		// Instruction for the tool's 'console_code' field (harmonized with the system prompt)
 		string codeDescription =
-			"A complete, runnable C# console application (Program.cs content) that illustrates the answer. The code MUST be wrapped in ```csharp ... ``` markdown fences. If no code is applicable, this field MUST contain a C# comment explaining why, such as '// No code example is relevant.'";
+			// "A complete, runnable C# console application (Program.cs content) that illustrates the answer. The code MUST be wrapped in ```csharp ... ``` markdown fences. If no code is applicable, this field MUST contain a C# comment explaining why, such as '// No code example is relevant.'" +
+			"";
 
 		var setupMessage = new
 		{
@@ -217,50 +219,62 @@ public sealed class GeminiLiveClient : IAsyncDisposable
 
 	private async Task ReceiveLoopAsync(CancellationToken token)
 	{
-		var buffer = new byte[16 * 1024];
+		var buffer = new ArraySegment<byte>(new byte[64 * 1024]); // Increased buffer size to 64KB
 		try
 		{
 			while (!token.IsCancellationRequested && _ws.State == WebSocketState.Open)
 			{
 				using var ms = new MemoryStream();
-				WebSocketReceiveResult? result;
+				WebSocketReceiveResult result;
 				do
 				{
-					result = await _ws.ReceiveAsync(new ArraySegment<byte>(buffer), token);
+					result = await _ws.ReceiveAsync(buffer, token);
 					if (result.MessageType == WebSocketMessageType.Close)
 					{
 						Console.ForegroundColor = ConsoleColor.Cyan;
-						Console.WriteLine(result.CloseStatusDescription);
+						Console.WriteLine($"[GeminiLiveClient] WebSocket closed: {result.CloseStatus} {result.CloseStatusDescription}");
 						Console.ResetColor();
-
 						await CloseInternalAsync();
 						return;
 					}
-					ms.Write(buffer, 0, result.Count);
+					ms.Write(buffer.Array!, buffer.Offset, result.Count);
 				} while (!result.EndOfMessage);
 
-				var data = ms.ToArray();
-				var json = Encoding.UTF8.GetString(data);
+				ms.Seek(0, SeekOrigin.Begin);
+				var json = Encoding.UTF8.GetString(ms.ToArray());
+
 				try
 				{
 					var msg = JsonSerializer.Deserialize<GeminiMessage>(json, JsonOpts);
 					if (msg != null)
+					{
 						OnMessage?.Invoke(msg);
+					}
 				}
 				catch (JsonException jex)
 				{
+					Console.ForegroundColor = ConsoleColor.Red;
+					Console.WriteLine($"[GeminiLiveClient] JSON Deserialization Error: {jex.Message}");
+					Console.WriteLine($"[GeminiLiveClient] Faulty JSON: {json}");
+					Console.ResetColor();
 					OnError?.Invoke(jex);
 				}
 			}
 		}
 		catch (OperationCanceledException)
 		{
-			// normal
+			// Normal closure
 		}
 		catch (Exception ex)
 		{
-			OnError?.Invoke(ex);
-			await CloseInternalAsync();
+			if (!token.IsCancellationRequested)
+			{
+				Console.ForegroundColor = ConsoleColor.Red;
+				Console.WriteLine($"[GeminiLiveClient] Receive loop error: {ex}");
+				Console.ResetColor();
+				OnError?.Invoke(ex);
+				await CloseInternalAsync();
+			}
 		}
 	}
 
