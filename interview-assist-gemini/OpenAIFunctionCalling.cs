@@ -4,7 +4,7 @@ using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
-using NAudio.Wave;
+using GeminiLiveConsole;
 
 public class OpenAIRealtimeAPI
 {
@@ -12,10 +12,12 @@ public class OpenAIRealtimeAPI
 	private const string WS_URL = "wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-12-17";
 
 	private ClientWebSocket _ws;
-	private WaveInEvent _waveIn;
 	private CancellationTokenSource _cts;
 	private StringBuilder _currentFunctionArgs = new StringBuilder();
 	private string _currentFunctionName = "";
+	private AudioCaptureService? _audio;
+	private string? _currentCallId;
+
 	public static async Task Go(string openApiKey)
 	{
 		apiKey = openApiKey;
@@ -40,7 +42,12 @@ public class OpenAIRealtimeAPI
 		_ = Task.Run(() => ReceiveResponses());
 
 		await SendSessionConfig();
-		SetupAudioInput();
+
+		// Use shared audio capture service at 24kHz mono PCM16
+		_audio = new AudioCaptureService(24000, AudioInputSource.Loopback);
+		_audio.OnAudioChunk += bytes => _ = SendAudioChunk(bytes);
+		_audio.Start();
+		Console.WriteLine("✓ AudioCaptureService active");
 
 		Console.WriteLine("✓ Ready! Start speaking...");
 		Console.WriteLine("Press Q to quit\n");
@@ -49,8 +56,78 @@ public class OpenAIRealtimeAPI
 
 		Cleanup();
 	}
-
 	private async Task SendSessionConfig()
+	{
+		var config = new
+		{
+			type = "session.update",
+			session = new
+			{
+				modalities = new[] { "text" }, // Change to text-only to avoid audio confusion
+				instructions = "You are a C# programming expert. " +
+							  "\n\nCRITICAL RULES FOR FUNCTION CALLING:" +
+							  "\n1. You MUST call report_technical_response for EVERY programming question" +
+							  "\n2. You MUST provide BOTH parameters EVERY TIME:" +
+							  "\n   - answer: Your explanation" +
+							  "\n   - console_code: A complete C# code example" +
+							  "\n3. NEVER omit console_code. If you don't have a code example, use this:" +
+							  "\n   console_code: \"// No code example applicable\"" +
+							  "\n4. The code MUST be a complete, runnable C# console application" +
+							  "\n5. Include using statements and a Main method" +
+							  "\n\nExample of correct function call:" +
+							  "\n{" +
+							  "\n  \"answer\": \"Explanation here\"," +
+							  "\n  \"console_code\": \"using System;\\nclass Program { static void Main() { } }\"" +
+							  "\n}",
+				voice = "alloy",
+				input_audio_format = "pcm16",
+				output_audio_format = "pcm16",
+				input_audio_transcription = new
+				{
+					model = "whisper-1"
+				},
+				turn_detection = new
+				{
+					type = "server_vad",
+					threshold = 0.5,
+					prefix_padding_ms = 300,
+					silence_duration_ms = 500
+				},
+				tools = new[]
+				{
+				new
+				{
+					type = "function",
+					name = "report_technical_response",
+					description = "MANDATORY function to call for programming questions. MUST include both 'answer' AND 'console_code' - no exceptions!",
+					parameters = new
+					{
+						type = "object",
+						properties = new
+						{
+							answer = new
+							{
+								type = "string",
+								description = "Detailed explanation of the C# concept"
+							},
+							console_code = new
+							{
+								type = "string",
+								description = "REQUIRED - NEVER omit this. Complete runnable C# console application with using statements and Main method. Minimum: 'using System;\\nclass Program { static void Main() { Console.WriteLine(\"Example\"); } }'"
+							}
+						},
+						required = new[] { "answer", "console_code" }
+					},
+					//strict = true  // Enable strict schema enforcement
+                }
+			},
+				tool_choice = "required"  // Force function calling
+			}
+		};
+
+		await SendMessage(config);
+	}
+	private async Task SendSessionConfig_old_01()
 	{
 		var config = new
 		{
@@ -108,26 +185,6 @@ public class OpenAIRealtimeAPI
 
 		await SendMessage(config);
 		Console.WriteLine("✓ Session configured");
-	}
-
-	private void SetupAudioInput()
-	{
-		// OpenAI uses 24kHz for input
-		_waveIn = new WaveInEvent
-		{
-			WaveFormat = new WaveFormat(24000, 16, 1),
-			BufferMilliseconds = 100
-		};
-
-		_waveIn.DataAvailable += async (s, e) =>
-		{
-			byte[] audioData = new byte[e.BytesRecorded];
-			Array.Copy(e.Buffer, audioData, e.BytesRecorded);
-			await SendAudioChunk(audioData);
-		};
-
-		_waveIn.StartRecording();
-		Console.WriteLine("✓ Microphone active");
 	}
 
 	private async Task SendAudioChunk(byte[] audioData)
@@ -197,12 +254,468 @@ public class OpenAIRealtimeAPI
 		}
 	}
 
-
-
-
-	// ... (rest of your existing code)
-
 	private void ProcessResponse(string json)
+	{
+		try
+		{
+			using var doc = JsonDocument.Parse(json);
+			var root = doc.RootElement;
+
+			if (!root.TryGetProperty("type", out var eventType))
+				return;
+
+			var type = eventType.GetString();
+
+			switch (type)
+			{
+				case "session.created":
+				case "session.updated":
+					// Session events - already logged
+					break;
+
+				case "conversation.item.input_audio_transcription.completed":
+					if (root.TryGetProperty("transcript", out var transcript))
+					{
+						Console.ForegroundColor = ConsoleColor.Gray;
+						Console.WriteLine($"\n[You said]: {transcript.GetString()}");
+						Console.ResetColor();
+					}
+					break;
+
+				case "input_audio_buffer.speech_started":
+					Console.ForegroundColor = ConsoleColor.Cyan;
+					Console.Write("\n🎤 ");
+					Console.ResetColor();
+					break;
+
+				case "input_audio_buffer.speech_stopped":
+					Console.WriteLine(" (processing...)");
+					break;
+
+				case "response.function_call_arguments.delta":
+					// Accumulate function argument chunks
+					if (root.TryGetProperty("call_id", out var callId))
+					{
+						_currentCallId = callId.GetString();
+					}
+
+					if (root.TryGetProperty("delta", out var delta))
+					{
+						var deltaText = delta.GetString();
+						_currentFunctionArgs.Append(deltaText);
+					}
+					break;
+
+				case "response.function_call_arguments.done":
+					Console.WriteLine();
+
+					if (root.TryGetProperty("name", out var funcName))
+					{
+						_currentFunctionName = funcName.GetString();
+					}
+
+					try
+					{
+						var completeArgsJson = _currentFunctionArgs.ToString();
+
+						if (!string.IsNullOrWhiteSpace(completeArgsJson))
+						{
+							using var argsDoc = JsonDocument.Parse(completeArgsJson);
+							var args = argsDoc.RootElement;
+
+							Console.ForegroundColor = ConsoleColor.Green;
+							Console.WriteLine("\n" + new string('═', 70));
+							Console.WriteLine($"📋 ANSWER");
+							Console.WriteLine(new string('═', 70));
+							Console.ResetColor();
+
+							string answerText = "";
+							string codeText = "";
+
+							if (args.TryGetProperty("answer", out var answer))
+							{
+								answerText = answer.GetString();
+								Console.WriteLine($"\n{answerText}\n");
+							}
+
+							if (args.TryGetProperty("console_code", out var code))
+							{
+								codeText = code.GetString();
+							}
+
+							// If console_code is missing, try to extract from answer
+							if (string.IsNullOrWhiteSpace(codeText) && !string.IsNullOrWhiteSpace(answerText))
+							{
+								Console.ForegroundColor = ConsoleColor.Yellow;
+								Console.WriteLine("⚠️  No console_code provided - extracting from answer...");
+								Console.ResetColor();
+
+								var (_, extractedCode) = ExtractCodeFromText(answerText);
+								codeText = extractedCode;
+							}
+
+							if (!string.IsNullOrWhiteSpace(codeText))
+							{
+								Console.ForegroundColor = ConsoleColor.Cyan;
+								Console.WriteLine("Code:");
+								Console.WriteLine(new string('-', 70));
+								Console.WriteLine(codeText);
+								Console.WriteLine(new string('-', 70));
+								Console.ResetColor();
+								Console.WriteLine();
+							}
+							else
+							{
+								Console.ForegroundColor = ConsoleColor.DarkYellow;
+								Console.WriteLine("(No code example provided)");
+								Console.ResetColor();
+							}
+						}
+					}
+					catch (JsonException jsonEx)
+					{
+						Console.ForegroundColor = ConsoleColor.Red;
+						Console.WriteLine($"\n⚠️  JSON Parse Error: {jsonEx.Message}");
+						Console.WriteLine($"Accumulated JSON: {_currentFunctionArgs}");
+						Console.ResetColor();
+					}
+					finally
+					{
+						_currentFunctionArgs.Clear();
+						_currentFunctionName = "";
+						_currentCallId = "";
+					}
+					break;
+
+				case "response.text.delta":
+					if (root.TryGetProperty("delta", out var textDelta))
+					{
+						Console.ForegroundColor = ConsoleColor.Yellow;
+						Console.Write(textDelta.GetString());
+						Console.ResetColor();
+					}
+					break;
+
+				case "response.text.done":
+					Console.WriteLine();
+					break;
+
+				case "response.audio_transcript.delta":
+					if (root.TryGetProperty("delta", out var audioDelta))
+					{
+						Console.ForegroundColor = ConsoleColor.Magenta;
+						Console.Write(audioDelta.GetString());
+						Console.ResetColor();
+					}
+					break;
+
+				case "response.audio_transcript.done":
+					Console.WriteLine();
+					break;
+
+				case "response.done":
+					Console.WriteLine();
+					break;
+
+				case "error":
+					if (root.TryGetProperty("error", out var error))
+					{
+						Console.ForegroundColor = ConsoleColor.Red;
+						Console.WriteLine($"\n❌ Error: {error.GetProperty("message").GetString()}");
+						if (error.TryGetProperty("code", out var errorCode))
+						{
+							Console.WriteLine($"Code: {errorCode.GetString()}");
+						}
+						Console.ResetColor();
+					}
+					break;
+
+				// Ignore these verbose events
+				case "response.audio.delta":
+				case "input_audio_buffer.committed":
+				case "input_audio_buffer.cleared":
+				case "conversation.item.created":
+				case "response.created":
+				case "response.output_item.added":
+				case "response.output_item.done":
+				case "response.content_part.added":
+				case "response.content_part.done":
+					break;
+
+				default:
+					// Log unknown event types for debugging
+					Console.ForegroundColor = ConsoleColor.DarkGray;
+					Console.WriteLine($"[Event: {type}]");
+					Console.ResetColor();
+					break;
+			}
+		}
+		catch (JsonException jsonEx)
+		{
+			Console.WriteLine($"JSON Parse error in event: {jsonEx.Message}");
+			Console.WriteLine($"Problematic JSON: {json.Substring(0, Math.Min(200, json.Length))}...");
+		}
+		catch (Exception ex)
+		{
+			Console.WriteLine($"Parse error: {ex.Message}");
+		}
+	}
+
+	private (string explanation, string code) ExtractCodeFromText(string text)
+	{
+		if (string.IsNullOrWhiteSpace(text))
+			return ("", "");
+
+		// Pattern to match code blocks with optional language identifier
+		var codeBlockPattern = @"```(?:csharp|cs|c#)?\s*\n(.*?)\n```";
+		var regex = new System.Text.RegularExpressions.Regex(codeBlockPattern,
+			System.Text.RegularExpressions.RegexOptions.Singleline |
+			System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+		var match = regex.Match(text);
+
+		if (match.Success)
+		{
+			var code = match.Groups[1].Value.Trim();
+			var explanation = regex.Replace(text, "\n[CODE EXTRACTED]\n").Trim();
+			return (explanation, code);
+		}
+
+		return (text, "");
+	}
+	private void ProcessResponse_old_2(string json)
+	{
+		try
+		{
+			using var doc = JsonDocument.Parse(json);
+			var root = doc.RootElement;
+
+			if (!root.TryGetProperty("type", out var eventType))
+				return;
+
+			var type = eventType.GetString();
+
+			switch (type)
+			{
+				case "session.created":
+				case "session.updated":
+					// Session events - already logged
+					break;
+
+				case "conversation.item.input_audio_transcription.completed":
+					if (root.TryGetProperty("transcript", out var transcript))
+					{
+						Console.ForegroundColor = ConsoleColor.Gray;
+						Console.WriteLine($"\n[You said]: {transcript.GetString()}");
+						Console.ResetColor();
+					}
+					break;
+
+				case "input_audio_buffer.speech_started":
+					Console.ForegroundColor = ConsoleColor.Cyan;
+					Console.Write("\n🎤 ");
+					Console.ResetColor();
+					break;
+
+				case "input_audio_buffer.speech_stopped":
+					Console.WriteLine(" (processing...)");
+					break;
+
+				case "response.function_call_arguments.delta":
+					// Accumulate function argument chunks
+					if (root.TryGetProperty("call_id", out var callId))
+					{
+						_currentCallId = callId.GetString();
+					}
+
+					if (root.TryGetProperty("delta", out var delta))
+					{
+						var deltaText = delta.GetString();
+						_currentFunctionArgs.Append(deltaText);
+
+						// DEBUG: Show what's being accumulated
+						Console.ForegroundColor = ConsoleColor.DarkGray;
+						Console.Write(deltaText);
+						Console.ResetColor();
+					}
+					break;
+
+				case "response.function_call_arguments.done":
+					// All function arguments received
+					Console.WriteLine(); // New line after delta streaming
+
+					if (root.TryGetProperty("name", out var funcName))
+					{
+						_currentFunctionName = funcName.GetString();
+					}
+
+					// DEBUG: Show complete accumulated JSON
+					Console.ForegroundColor = ConsoleColor.DarkYellow;
+					Console.WriteLine("\n=== COMPLETE FUNCTION ARGS JSON ===");
+					Console.WriteLine(_currentFunctionArgs.ToString());
+					Console.WriteLine("=== END ===\n");
+					Console.ResetColor();
+
+					try
+					{
+						var completeArgsJson = _currentFunctionArgs.ToString();
+
+						if (!string.IsNullOrWhiteSpace(completeArgsJson))
+						{
+							using var argsDoc = JsonDocument.Parse(completeArgsJson);
+							var args = argsDoc.RootElement;
+
+							Console.ForegroundColor = ConsoleColor.Green;
+							Console.WriteLine("\n" + new string('═', 70));
+							Console.WriteLine($"📋 FUNCTION CALL: {_currentFunctionName}");
+							Console.WriteLine(new string('═', 70));
+							Console.ResetColor();
+
+							if (args.TryGetProperty("answer", out var answer))
+							{
+								Console.WriteLine($"\nAnswer: {answer.GetString()}\n");
+							}
+							else
+							{
+								Console.ForegroundColor = ConsoleColor.Red;
+								Console.WriteLine("⚠️  No 'answer' property found");
+								Console.ResetColor();
+							}
+
+							if (args.TryGetProperty("console_code", out var code))
+							{
+								var codeText = code.GetString();
+								if (!string.IsNullOrWhiteSpace(codeText))
+								{
+									Console.ForegroundColor = ConsoleColor.Cyan;
+									Console.WriteLine("Code:");
+									Console.WriteLine(new string('-', 70));
+									Console.WriteLine(codeText);
+									Console.WriteLine(new string('-', 70));
+									Console.ResetColor();
+									Console.WriteLine();
+								}
+								else
+								{
+									Console.ForegroundColor = ConsoleColor.Red;
+									Console.WriteLine("⚠️  'console_code' is empty");
+									Console.ResetColor();
+								}
+							}
+							else
+							{
+								Console.ForegroundColor = ConsoleColor.Red;
+								Console.WriteLine("⚠️  No 'console_code' property found in function arguments");
+								Console.ResetColor();
+							}
+
+							// DEBUG: Show all properties that ARE present
+							Console.ForegroundColor = ConsoleColor.DarkCyan;
+							Console.WriteLine("\nProperties found in args:");
+							foreach (var prop in args.EnumerateObject())
+							{
+								Console.WriteLine($"  - {prop.Name}");
+							}
+							Console.ResetColor();
+						}
+					}
+					catch (JsonException jsonEx)
+					{
+						Console.ForegroundColor = ConsoleColor.Red;
+						Console.WriteLine($"\n⚠️  JSON Parse Error: {jsonEx.Message}");
+						Console.WriteLine($"Length: {_currentFunctionArgs.Length} chars");
+						Console.WriteLine("\nFirst 500 chars:");
+						Console.WriteLine(_currentFunctionArgs.ToString().Substring(0, Math.Min(500, _currentFunctionArgs.Length)));
+						Console.WriteLine("\nLast 500 chars:");
+						var len = _currentFunctionArgs.Length;
+						Console.WriteLine(_currentFunctionArgs.ToString().Substring(Math.Max(0, len - 500)));
+						Console.ResetColor();
+					}
+					finally
+					{
+						// Reset for next function call
+						_currentFunctionArgs.Clear();
+						_currentFunctionName = "";
+						_currentCallId = "";
+					}
+					break;
+
+				case "response.text.delta":
+					if (root.TryGetProperty("delta", out var textDelta))
+					{
+						Console.ForegroundColor = ConsoleColor.Yellow;
+						Console.Write(textDelta.GetString());
+						Console.ResetColor();
+					}
+					break;
+
+				case "response.text.done":
+					Console.WriteLine();
+					break;
+
+				case "response.audio_transcript.delta":
+					if (root.TryGetProperty("delta", out var audioDelta))
+					{
+						Console.ForegroundColor = ConsoleColor.Magenta;
+						Console.Write(audioDelta.GetString());
+						Console.ResetColor();
+					}
+					break;
+
+				case "response.audio_transcript.done":
+					Console.WriteLine();
+					break;
+
+				case "response.done":
+					// Response complete
+					Console.WriteLine();
+					break;
+
+				case "error":
+					if (root.TryGetProperty("error", out var error))
+					{
+						Console.ForegroundColor = ConsoleColor.Red;
+						Console.WriteLine($"\n❌ Error: {error.GetProperty("message").GetString()}");
+						if (error.TryGetProperty("code", out var errorCode))
+						{
+							Console.WriteLine($"Code: {errorCode.GetString()}");
+						}
+						Console.ResetColor();
+					}
+					break;
+
+				// Ignore these events (they're verbose)
+				case "response.audio.delta":
+				case "input_audio_buffer.committed":
+				case "input_audio_buffer.cleared":
+				case "conversation.item.created":
+				case "response.created":
+				case "response.output_item.added":
+				case "response.output_item.done":
+				case "response.content_part.added":
+				case "response.content_part.done":
+					break;
+
+				default:
+					// Log unknown event types for debugging
+					Console.ForegroundColor = ConsoleColor.DarkGray;
+					Console.WriteLine($"[Event: {type}]");
+					Console.ResetColor();
+					break;
+			}
+		}
+		catch (JsonException jsonEx)
+		{
+			Console.WriteLine($"JSON Parse error in event: {jsonEx.Message}");
+			Console.WriteLine($"Problematic JSON: {json.Substring(0, Math.Min(200, json.Length))}...");
+		}
+		catch (Exception ex)
+		{
+			Console.WriteLine($"Parse error: {ex.Message}");
+		}
+	}
+
+	private void ProcessResponse_OLD(string json)
 	{
 		try
 		{
@@ -457,8 +970,8 @@ public class OpenAIRealtimeAPI
 
 	private void Cleanup()
 	{
-		_waveIn?.StopRecording();
-		_waveIn?.Dispose();
+		_audio?.Stop();
+		_audio?.Dispose();
 		_cts?.Cancel();
 		_ws?.Dispose();
 		Console.WriteLine("\nStopped.");

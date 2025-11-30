@@ -16,7 +16,11 @@ class Program
 		var apiGeminiKey = Environment.GetEnvironmentVariable("GEMINI_API_KEY") ?? configuration["GoogleGemini:ApiKey"];
 		var apiOpenAiKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY") ?? configuration["OpenAI:ApiKey"];
 
-		await OpenAIRealtimeAPI.Go(apiOpenAiKey);
+		IAudioCaptureService audioCapture = new AudioCaptureService(24000, AudioInputSource.Microphone);
+		var openAiRealtime = new OpenAIRealtimeAPI2(audioCapture, apiOpenAiKey);
+		await openAiRealtime.Start();
+
+		//await OpenAIRealtimeAPI.Go(apiOpenAiKey);
 		//await GeminiLiveAPI.Go(apiGeminiKey);
 		//await GeminiFunctionCallingExample.Start();
 		//await Start(args);

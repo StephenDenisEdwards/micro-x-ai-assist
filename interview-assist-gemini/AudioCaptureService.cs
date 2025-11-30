@@ -3,13 +3,7 @@ using NAudio.CoreAudioApi;
 
 namespace GeminiLiveConsole;
 
-public enum AudioInputSource
-{
-    Microphone,
-    Loopback
-}
-
-public sealed class AudioCaptureService : IDisposable
+public sealed class AudioCaptureService : IAudioCaptureService
 {
     private WaveInEvent? _waveIn;
     private WasapiLoopbackCapture? _loopback;
