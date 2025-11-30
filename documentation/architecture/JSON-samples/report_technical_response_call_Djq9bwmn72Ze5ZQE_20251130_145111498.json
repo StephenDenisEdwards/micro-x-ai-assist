@@ -1,0 +1,82 @@
+{"answer":"In C#, classes and structs are both used to define custom data types, but they have several key differences in terms of memory allocation, usage, and behavior:
+
+1. **Memory Allocation**:
+   - **Class**: Instances of classes are reference types, allocated on the heap. They have a reference (pointer) to the actual data.
+   - **Struct**: Instances of structs are value types, allocated on the stack (or inline in arrays/other structs). They directly contain their data.
+
+2. **Default Constructor**:
+   - **Class**: Classes can have a parameterless constructor defined by the user. If not defined, a default constructor is provided by the runtime.
+   - **Struct**: Structs cannot have a user-defined parameterless constructor. They always have an implicit default constructor that initializes fields to their default values.
+
+3. **Inheritance**:
+   - **Class**: Classes support inheritance. A class can inherit from another class (single inheritance) and implement multiple interfaces.
+   - **Struct**: Structs do not support inheritance (except for implementing interfaces). They cannot inherit from another struct or class.
+
+4. **Immutability**:
+   - **Class**: Classes are often used for objects that are expected to have a longer lifespan and may be mutable.
+   - **Struct**: Structs are ideal for small, immutable data structures. Mutating a struct produces a copy, which can be unintuitive if not handled carefully.
+
+5. **Passing by Value or Reference**:
+   - **Class**: Passed by reference by default. Assigning a class instance to another variable copies the reference, not the object.
+   - **Struct**: Passed by value. Assigning a struct to another variable copies the entire value, not just a reference.
+
+6. **Boxing and Unboxing**:
+   - **Class**: No boxing or unboxing is needed as they are reference types.
+   - **Struct**: When a struct is treated as an object (or an interface it implements), it is boxed (copied to the heap), which can incur a performance cost.
+
+7. **Usage Scenarios**:
+   - **Class**: Use classes when you need complex behavior, inheritance, polymorphism, or when the data needs to live on the heap.
+   - **Struct**: Use structs for lightweight, immutable data structures, especially when they are short-lived or used in high-performance scenarios.
+
+Here's an example illustrating the basic differences between a class and a struct:
+
+```csharp
+using System;
+
+public class MyClass
+{
+    public int Value { get; set; }
+
+    public MyClass(int value)
+    {
+        Value = value;
+    }
+}
+
+public struct MyStruct
+{
+    public int Value { get; set; }
+
+    public MyStruct(int value)
+    {
+        Value = value;
+    }
+}
+
+class Program
+{
+    static void Main()
+    {
+        var classInstance = new MyClass(10);
+        var structInstance = new MyStruct(10);
+
+        Modify(classInstance);
+        Modify(structInstance);
+
+        Console.WriteLine($"Class Value: {classInstance.Value}"); // Outputs: 20
+        Console.WriteLine($"Struct Value: {structInstance.Value}"); // Outputs: 10
+    }
+
+    static void Modify(MyClass c)
+    {
+        c.Value = 20; // Modifies the original instance
+    }
+
+    static void Modify(MyStruct s)
+    {
+        s.Value = 20; // Modifies a copy, not the original
+    }
+}
+```
+
+In this example, modifying the class instance affects the original object, while modifying the struct instance does not, due to the differences in value and reference semantics."

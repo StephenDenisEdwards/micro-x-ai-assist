@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using System.IO;
 using GeminiLiveConsole; // for AudioCaptureService
 
 public class OpenAIRealtimeAPI2
@@ -329,9 +330,19 @@ public class OpenAIRealtimeAPI2
 		}
 		catch (Exception e)
 		{
-			Console.WriteLine(e);
-			argsDoc?.Dispose();
-			throw;
+			var repaired  = JsonRepairUtility.Repair(json);
+
+			if (!string.IsNullOrEmpty(repaired))
+			{
+				argsDoc = JsonDocument.Parse(repaired);
+				args = argsDoc.RootElement;
+			}
+			else
+			{
+				Console.WriteLine(e);
+				argsDoc?.Dispose();
+				throw;
+			}
 		}
 
 		Console.ForegroundColor = ConsoleColor.Green;
@@ -516,9 +527,11 @@ public class OpenAIRealtimeAPI2
 										Console.ForegroundColor = ConsoleColor.DarkYellow;
 										Console.WriteLine("Raw function arguments JSON:");
 										Console.WriteLine(new string('-', 70));
-										Console.WriteLine(_functionCallBuffers.TryGetValue(capturedCallId, out var buf) ? buf.ToString() : string.Empty);
+										string rawJson = _functionCallBuffers.TryGetValue(capturedCallId, out var buf) ? buf.ToString() : string.Empty;
+										Console.WriteLine(rawJson);
 										Console.WriteLine(new string('-', 70));
 										Console.ResetColor();
+										SaveRawJsonToFile(capturedFuncName, capturedCallId, rawJson);
 									}
 									finally
 									{
@@ -532,6 +545,7 @@ public class OpenAIRealtimeAPI2
 								try
 								{
 									ParseFunctionArgs(raw, functionName);
+									SaveRawJsonToFile(functionName, Guid.NewGuid().ToString(), raw);
 								}
 								catch (Exception ex)
 								{
@@ -544,6 +558,7 @@ public class OpenAIRealtimeAPI2
 									Console.WriteLine(raw);
 									Console.WriteLine(new string('-', 70));
 									Console.ResetColor();
+									SaveRawJsonToFile(functionName, doneCallId, raw);
 								}
 								finally
 								{
@@ -625,6 +640,49 @@ public class OpenAIRealtimeAPI2
 		{
 			Console.WriteLine($"Parse error: {ex.Message}");
 		}
+	}
+
+	private void SaveRawJsonToFile(string functionName, string callId, string rawJson)
+	{
+		try
+		{
+			if (string.IsNullOrWhiteSpace(rawJson)) return;
+
+			var safeFunc = string.IsNullOrWhiteSpace(functionName) ? "unknown" : MakeFileNameSafe(functionName);
+			var safeCall = string.IsNullOrWhiteSpace(callId) ? "nocallid" : MakeFileNameSafe(callId);
+			var timestamp = DateTime.UtcNow.ToString("yyyyMMdd_HHmmssfff");
+			var baseName = $"{safeFunc}_{safeCall}_{timestamp}";
+			var dir = Path.Combine(AppContext.BaseDirectory, "function-args-logs");
+			Directory.CreateDirectory(dir);
+			var path = Path.Combine(dir, baseName + ".json");
+
+			int suffix = 0;
+			while (File.Exists(path))
+			{
+				suffix++;
+				path = Path.Combine(dir, $"{baseName}_{suffix}.json");
+			}
+
+			File.WriteAllText(path, rawJson);
+			Console.ForegroundColor = ConsoleColor.DarkGray;
+			Console.WriteLine($"Saved raw function args to: {path}");
+			Console.ResetColor();
+		}
+		catch (Exception fileEx)
+		{
+			Console.ForegroundColor = ConsoleColor.DarkRed;
+			Console.WriteLine($"Failed to save raw JSON file: {fileEx.Message}");
+			Console.ResetColor();
+		}
+	}
+
+	private static string MakeFileNameSafe(string name)
+	{
+		foreach (var c in Path.GetInvalidFileNameChars())
+		{
+			name = name.Replace(c, '_');
+		}
+		return name;
 	}
 
 	private (string explanation, string code) ExtractCodeFromText(string text)
