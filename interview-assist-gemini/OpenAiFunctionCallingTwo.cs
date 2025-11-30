@@ -269,6 +269,122 @@ public class OpenAIRealtimeAPI2
 
 		return result.ToString();
 	}
+
+	// NEW: Validate completeness of streamed JSON object (balance braces outside strings and end with })
+	private bool IsCompleteJson(string json)
+	{
+		if (string.IsNullOrWhiteSpace(json))
+			return false;
+
+		var trimmed = json.TrimEnd();
+		bool inString = false;
+		bool escaped = false;
+		int depth = 0;
+
+		for (int i = 0; i < json.Length; i++)
+		{
+			char c = json[i];
+
+			if (escaped)
+			{
+				escaped = false;
+				continue;
+			}
+
+			if (c == '\\')
+			{
+				escaped = true;
+				continue;
+			}
+
+			if (c == '"')
+			{
+				inString = !inString;
+				continue;
+			}
+
+			if (inString)
+				continue;
+
+			if (c == '{')
+				depth++;
+			else if (c == '}')
+				depth--;
+		}
+
+		return !inString && depth == 0 && trimmed.EndsWith("}");
+	}
+
+	// NEW: Centralized parse + render for function-call arguments
+	private void ParseFunctionArgs(string json, string functionName)
+	{
+		var fixedJson = FixMalformedJson(json);
+		JsonElement args;
+		JsonDocument argsDoc = null;
+		try
+		{
+			argsDoc = JsonDocument.Parse(fixedJson);
+			args = argsDoc.RootElement;
+
+		}
+		catch (Exception e)
+		{
+			Console.WriteLine(e);
+			argsDoc?.Dispose();
+			throw;
+		}
+
+		Console.ForegroundColor = ConsoleColor.Green;
+		Console.WriteLine("\n" + new string('═', 70));
+		Console.WriteLine($"📋 ANSWER - {functionName}");
+		Console.WriteLine(new string('═', 70));
+		Console.ResetColor();
+
+		string answerText = "";
+		string codeText = "";
+
+		if (args.TryGetProperty("answer", out var answer))
+		{
+			answerText = answer.GetString();
+			Console.WriteLine($"\n{answerText}\n");
+		}
+
+		if (args.TryGetProperty("console_code", out var code))
+		{
+			codeText = code.GetString();
+		}
+
+		if (string.IsNullOrWhiteSpace(codeText) && !string.IsNullOrWhiteSpace(answerText))
+		{
+			Console.ForegroundColor = ConsoleColor.Yellow;
+			Console.WriteLine("⚠️  No console_code provided - extracting from answer...");
+			Console.ResetColor();
+
+			var (_, extractedCode) = ExtractCodeFromText(answerText);
+			codeText = extractedCode;
+		}
+
+		if (!string.IsNullOrWhiteSpace(codeText))
+		{
+			Console.ForegroundColor = ConsoleColor.Cyan;
+			Console.WriteLine("Code:");
+			Console.WriteLine(new string('-', 70));
+			Console.WriteLine(codeText);
+			Console.WriteLine(new string('-', 70));
+			Console.ResetColor();
+			Console.WriteLine();
+		}
+		else
+		{
+			Console.ForegroundColor = ConsoleColor.DarkYellow;
+			Console.WriteLine("(No code example provided)");
+			Console.ResetColor();
+		}
+
+		argsDoc?.Dispose();
+
+	}
+
 	private void ProcessResponse(string json)
 	{
 		try
@@ -359,82 +475,70 @@ public class OpenAIRealtimeAPI2
 
 					if (!string.IsNullOrEmpty(doneCallId) && _functionCallBuffers.ContainsKey(doneCallId))
 					{
-						try
+						var raw = _functionCallBuffers[doneCallId].ToString();
+						if (!string.IsNullOrWhiteSpace(raw))
 						{
-							var completeArgsJson = _functionCallBuffers[doneCallId].ToString();
-
-							if (!string.IsNullOrWhiteSpace(completeArgsJson))
+							if (!IsCompleteJson(raw))
 							{
-								// FIX: Manually escape newlines and other control characters
-								// that OpenAI failed to escape properly
-								var fixedJson = FixMalformedJson(completeArgsJson);
-
-								using var argsDoc = JsonDocument.Parse(fixedJson);
-								var args = argsDoc.RootElement;
-
-								Console.ForegroundColor = ConsoleColor.Green;
-								Console.WriteLine("\n" + new string('═', 70));
-								Console.WriteLine($"📋 ANSWER - {functionName}");
-								Console.WriteLine(new string('═', 70));
+								Console.ForegroundColor = ConsoleColor.Yellow;
+								Console.WriteLine("⚠️  Incomplete function args – waiting for remaining deltas...");
 								Console.ResetColor();
 
-								string answerText = "";
-								string codeText = "";
+								var capturedCallId = doneCallId;
+								var capturedFuncName = functionName;
 
-								if (args.TryGetProperty("answer", out var answer))
+								_ = Task.Run(async () =>
 								{
-									answerText = answer.GetString();
-									Console.WriteLine($"\n{answerText}\n");
-								}
-
-								if (args.TryGetProperty("console_code", out var code))
-								{
-									codeText = code.GetString();
-								}
-
-								// If console_code is missing, try to extract from answer
-								if (string.IsNullOrWhiteSpace(codeText) && !string.IsNullOrWhiteSpace(answerText))
-								{
-									Console.ForegroundColor = ConsoleColor.Yellow;
-									Console.WriteLine("⚠️  No console_code provided - extracting from answer...");
-									Console.ResetColor();
-
-									var (_, extractedCode) = ExtractCodeFromText(answerText);
-									codeText = extractedCode;
-								}
-
-								if (!string.IsNullOrWhiteSpace(codeText))
-								{
-									Console.ForegroundColor = ConsoleColor.Cyan;
-									Console.WriteLine("Code:");
-									Console.WriteLine(new string('-', 70));
-									Console.WriteLine(codeText);
-									Console.WriteLine(new string('-', 70));
-									Console.ResetColor();
-									Console.WriteLine();
-								}
-								else
-								{
-									Console.ForegroundColor = ConsoleColor.DarkYellow;
-									Console.WriteLine("(No code example provided)");
-									Console.ResetColor();
-								}
+									try
+									{
+										await Task.Delay(250);
+										if (_functionCallBuffers.TryGetValue(capturedCallId, out var retrySb))
+										{
+											var retry = retrySb.ToString();
+											if (IsCompleteJson(retry))
+											{
+												ParseFunctionArgs(retry, capturedFuncName);
+											}
+											else
+											{
+												Console.ForegroundColor = ConsoleColor.Red;
+												Console.WriteLine("⚠️  Still incomplete after retry – skipping parse.");
+												Console.ResetColor();
+											}
+										}
+									}
+									catch (JsonException jsonEx)
+									{
+										Console.ForegroundColor = ConsoleColor.Red;
+										Console.WriteLine($"\n⚠️  JSON Parse Error: {jsonEx.Message}");
+										Console.WriteLine("This is likely an OpenAI API bug with unescaped newlines or dropped deltas");
+										Console.ResetColor();
+									}
+									finally
+									{
+										_functionCallBuffers.Remove(capturedCallId);
+										_functionCallNames.Remove(capturedCallId);
+									}
+								});
 							}
-						}
-						catch (JsonException jsonEx)
-						{
-							Console.ForegroundColor = ConsoleColor.Red;
-							Console.WriteLine($"\n⚠️  JSON Parse Error: {jsonEx.Message}");
-							Console.WriteLine($"This is likely an OpenAI API bug with unescaped newlines");
-							Console.ResetColor();
-						}
-						finally
-						{
-							// Clean up this call
-							_functionCallBuffers.Remove(doneCallId);
-							if (_functionCallNames.ContainsKey(doneCallId))
+							else
 							{
-								_functionCallNames.Remove(doneCallId);
+								try
+								{
+									ParseFunctionArgs(raw, functionName);
+								}
+								catch (JsonException jsonEx)
+								{
+									Console.ForegroundColor = ConsoleColor.Red;
+									Console.WriteLine($"\n⚠️  JSON Parse Error: {jsonEx.Message}");
+									Console.WriteLine("This is likely an OpenAI API bug with unescaped newlines");
+									Console.ResetColor();
+								}
+								finally
+								{
+									_functionCallBuffers.Remove(doneCallId);
+									_functionCallNames.Remove(doneCallId);
+								}
 							}
 						}
 					}
