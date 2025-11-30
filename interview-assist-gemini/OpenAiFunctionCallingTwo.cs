@@ -504,14 +504,20 @@ public class OpenAIRealtimeAPI2
 												Console.ForegroundColor = ConsoleColor.Red;
 												Console.WriteLine("⚠️  Still incomplete after retry – skipping parse.");
 												Console.ResetColor();
+												throw new Exception("JSON Incomplete or malformed.");
 											}
 										}
 									}
-									catch (JsonException jsonEx)
+									catch (Exception ex)
 									{
 										Console.ForegroundColor = ConsoleColor.Red;
-										Console.WriteLine($"\n⚠️  JSON Parse Error: {jsonEx.Message}");
-										Console.WriteLine("This is likely an OpenAI API bug with unescaped newlines or dropped deltas");
+										Console.WriteLine($"\n⚠️  Failed to parse function call arguments: {ex.Message}");
+										Console.ResetColor();
+										Console.ForegroundColor = ConsoleColor.DarkYellow;
+										Console.WriteLine("Raw function arguments JSON:");
+										Console.WriteLine(new string('-', 70));
+										Console.WriteLine(_functionCallBuffers.TryGetValue(capturedCallId, out var buf) ? buf.ToString() : string.Empty);
+										Console.WriteLine(new string('-', 70));
 										Console.ResetColor();
 									}
 									finally
@@ -527,11 +533,16 @@ public class OpenAIRealtimeAPI2
 								{
 									ParseFunctionArgs(raw, functionName);
 								}
-								catch (JsonException jsonEx)
+								catch (Exception ex)
 								{
 									Console.ForegroundColor = ConsoleColor.Red;
-									Console.WriteLine($"\n⚠️  JSON Parse Error: {jsonEx.Message}");
-									Console.WriteLine("This is likely an OpenAI API bug with unescaped newlines");
+									Console.WriteLine($"\n⚠️  Failed to parse function call arguments: {ex.Message}");
+									Console.ResetColor();
+									Console.ForegroundColor = ConsoleColor.DarkYellow;
+									Console.WriteLine("Raw function arguments JSON:");
+									Console.WriteLine(new string('-', 70));
+									Console.WriteLine(raw);
+									Console.WriteLine(new string('-', 70));
 									Console.ResetColor();
 								}
 								finally
