@@ -11,7 +11,7 @@ public sealed class ConsoleRealtimeSink : IRealtimeSink
 
 	public void OnInfo(string message) => ConsoleSplitUi.AppendOutputWithColor(message, ConsoleColor.White);
 	public void OnWarning(string message) => ConsoleSplitUi.AppendOutputWithColor($"[warn] {message}", ConsoleColor.Yellow);
-	public void OnDebug(string message) => ConsoleSplitUi.AppendOutputWithColor($"[debug] {message}", ConsoleColor.DarkGray);
+	public void OnDebug(string message) { /* suppressed */ }
 	public void OnError(Exception ex) => ConsoleSplitUi.AppendOutputWithColor($"[error] {ex}", ConsoleColor.Red);
 
 	public void OnUserTranscript(string text)

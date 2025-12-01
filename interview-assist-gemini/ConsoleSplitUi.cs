@@ -140,7 +140,8 @@ internal static class ConsoleSplitUi
 		int width = Math.Max(20, SafeGetWidth());
 		int height = Math.Max(10, SafeGetHeight());
 
-		int topHeight = Math.Max(3, (int)Math.Round(height * 0.75, MidpointRounding.AwayFromZero)) - 1;
+		// 90% top, 10% bottom
+		int topHeight = Math.Max(3, (int)Math.Round(height * 0.90, MidpointRounding.AwayFromZero)) - 1;
 		int bottomHeight = height - topHeight - 1;
 		int dividerRow = topHeight;
 
