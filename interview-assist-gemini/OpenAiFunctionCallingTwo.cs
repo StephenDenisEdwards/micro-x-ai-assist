@@ -166,6 +166,31 @@ public class OpenAIRealtimeAPI2 : IRealtimeApi
 		await SendMessage(message);
 	}
 
+	// Minimal impl to satisfy interface for this variant
+	public async Task SendTextAsync(string text, bool requestResponse = true, bool interrupt = false)
+	{
+		if (string.IsNullOrWhiteSpace(text)) return;
+		if (_ws == null || _ws.State != WebSocketState.Open) return;
+
+		if (interrupt)
+		{
+			await SendMessage(new { type = "response.cancel" });
+		}
+
+		var itemCreate = new
+		{
+			type = "conversation.item.create",
+			role = "user",
+			content = new object[] { new { type = "input_text", text = text } }
+		};
+		await SendMessage(itemCreate);
+		OnUserTranscript?.Invoke(text);
+		if (requestResponse)
+		{
+			await SendMessage(new { type = "response.create" });
+		}
+	}
+
 	private async Task SendMessage(object message)
 	{
 		try
@@ -616,7 +641,7 @@ public class OpenAIRealtimeAPI2 : IRealtimeApi
 
 	private static string MakeFileNameSafe(string name)
 	{
-		foreach (var c in Path.GetInvalidFileNameChars())
+		foreach (var c in System.IO.Path.GetInvalidFileNameChars())
 		{
 			name = name.Replace(c, '_');
 		}

@@ -28,4 +28,5 @@ public interface IRealtimeApi
 	event Action<string, string, string>? OnFunctionCallResponse; // functionName, answer, consoleCode
 
 	Task StartAsync(CancellationToken cancellationToken);
+	Task SendTextAsync(string text, bool requestResponse = true, bool interrupt = false);
 }

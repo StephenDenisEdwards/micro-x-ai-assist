@@ -87,7 +87,7 @@ public class OpenAIRealtimeAPI3 : IRealtimeApi
 			type = "session.update",
 			session = new
 			{
-				modalities = new[] { "text" },
+				modalities = new[] { "text", "audio" },
 				instructions = "You are a C# programming expert assistant.\\n\\n" +
 							  "MANDATORY BEHAVIOR:\\n" +
 							  "When calling report_technical_response, you MUST ALWAYS provide both parameters:\\n" +
@@ -162,6 +162,40 @@ public class OpenAIRealtimeAPI3 : IRealtimeApi
 		};
 
 		await SendMessage(message);
+	}
+
+	// NEW: Send typed text to the same session and optionally request a response
+	public async Task SendTextAsync(string text, bool requestResponse = true, bool interrupt = false)
+	{
+		if (string.IsNullOrWhiteSpace(text))
+			return;
+
+		if (_ws == null || _ws.State != WebSocketState.Open)
+			throw new InvalidOperationException("Realtime socket is not connected.");
+
+		if (interrupt)
+		{
+			await SendMessage(new { type = "response.cancel" });
+		}
+
+		var itemCreate = new
+		{
+			type = "conversation.item.create",
+			role = "user",
+			content = new object[]
+			{
+				new { type = "input_text", text = text }
+			}
+		};
+
+		await SendMessage(itemCreate);
+
+		OnUserTranscript?.Invoke(text);
+
+		if (requestResponse)
+		{
+			await SendMessage(new { type = "response.create" });
+		}
 	}
 
 	private async Task SendMessage(object message)

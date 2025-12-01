@@ -165,6 +165,31 @@ public class OpenAIRealtimeAPI : IRealtimeApi
 		await SendMessage(message);
 	}
 
+	// Minimal impl to satisfy interface for this variant
+	public async Task SendTextAsync(string text, bool requestResponse = true, bool interrupt = false)
+	{
+		if (string.IsNullOrWhiteSpace(text)) return;
+		if (_ws == null || _ws.State != WebSocketState.Open) return;
+
+		if (interrupt)
+		{
+			await SendMessage(new { type = "response.cancel" });
+		}
+
+		var itemCreate = new
+		{
+			type = "conversation.item.create",
+			role = "user",
+			content = new object[] { new { type = "input_text", text = text } }
+		};
+		await SendMessage(itemCreate);
+		OnUserTranscript?.Invoke(text);
+		if (requestResponse)
+		{
+			await SendMessage(new { type = "response.create" });
+		}
+	}
+
 	private async Task SendMessage(object message)
 	{
 		try
@@ -375,6 +400,7 @@ public class OpenAIRealtimeAPI : IRealtimeApi
 		}
 	}
 
+	// Minimal: used by SendTextAsync echo and function args extraction
 	private (string explanation, string code) ExtractCodeFromText(string text)
 	{
 		if (string.IsNullOrWhiteSpace(text))
