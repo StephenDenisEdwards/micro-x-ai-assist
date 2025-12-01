@@ -7,6 +7,8 @@ internal static class ConsoleSplitUi
 	private static readonly object _lock = new();
 	private static readonly List<string> _outputLines = new();
 	private static readonly List<ConsoleColor?> _outputColors = new();
+	// New: optional right-side color for two-column rows; null for normal rows
+	private static readonly List<ConsoleColor?> _twoColRightColors = new();
 	private static string _inputLine = string.Empty;
 	private static int _lastWidth = -1;
 	private static int _lastHeight = -1;
@@ -38,6 +40,7 @@ internal static class ConsoleSplitUi
 			var header = BuildTwoColRow("Assistant (function)", "Code", leftWidth, rightWidth);
 			_outputLines.Add(header);
 			_outputColors.Add(ConsoleColor.Cyan);
+			_twoColRightColors.Add(ConsoleColor.Cyan);
 
 			// Body rows
 			var leftLines = WrapToWidth(leftText ?? string.Empty, leftWidth);
@@ -48,8 +51,9 @@ internal static class ConsoleSplitUi
 				var l = i < leftLines.Count ? leftLines[i] : string.Empty;
 				var r = i < rightLines.Count ? rightLines[i] : string.Empty;
 				_outputLines.Add(BuildTwoColRow(l, r, leftWidth, rightWidth));
-				// Use left color for entire line (renderer supports one color per line)
+				// Left color for left column, rightColor for right column (renderer supports per-column via split write)
 				_outputColors.Add(leftColor);
+				_twoColRightColors.Add(rightColor);
 			}
 
 			TrimOutputCapacity();
@@ -98,6 +102,7 @@ internal static class ConsoleSplitUi
 				{
 					_outputLines.Add(chunk);
 					_outputColors.Add(color);
+					_twoColRightColors.Add(null);
 				}
 			}
 			TrimOutputCapacity();
@@ -201,6 +206,8 @@ internal static class ConsoleSplitUi
 			int toRemove = _outputLines.Count - maxLines;
 			_outputLines.RemoveRange(0, toRemove);
 			_outputColors.RemoveRange(0, Math.Min(toRemove, _outputColors.Count));
+			if (_twoColRightColors.Count > 0)
+				_twoColRightColors.RemoveRange(0, Math.Min(toRemove, _twoColRightColors.Count));
 			_scrollOffset = Math.Max(0, _scrollOffset - toRemove);
 		}
 	}
@@ -257,13 +264,44 @@ internal static class ConsoleSplitUi
 			SafeSetCursorPosition(left, top + i);
 			int idx = start + i;
 			string toWrite = (idx >= 0 && idx < total) ? _outputLines[idx] : string.Empty;
-			ConsoleColor? color = (idx >= 0 && idx < _outputColors.Count) ? _outputColors[idx] : null;
-			if (color.HasValue)
+			ConsoleColor? colorL = (idx >= 0 && idx < _outputColors.Count) ? _outputColors[idx] : null;
+			ConsoleColor? colorR = (idx >= 0 && idx < _twoColRightColors.Count) ? _twoColRightColors[idx] : null;
+
+			// If this is a two-column row (right color provided), split and render with two colors
+			if (colorR.HasValue && !string.IsNullOrEmpty(toWrite))
 			{
-				try { Console.ForegroundColor = color.Value; } catch { }
+				int sep = toWrite.IndexOf('?');
+				if (sep >= 0)
+				{
+					string leftPart = sep > 0 ? toWrite.Substring(0, sep) : string.Empty;
+					string rightPart = (sep + 1 < toWrite.Length) ? toWrite.Substring(sep + 1) : string.Empty;
+
+					try { if (colorL.HasValue) Console.ForegroundColor = colorL.Value; } catch { }
+					try { Console.Write(leftPart); } catch { }
+
+					try { Console.ForegroundColor = ConsoleColor.DarkGray; } catch { }
+					try { Console.Write('?'); } catch { }
+
+					try { Console.ForegroundColor = colorR.Value; } catch { }
+					try { Console.Write(rightPart); } catch { }
+
+					try { Console.ForegroundColor = prev; } catch { }
+
+					int pad = width - (leftPart.Length + 1 + rightPart.Length);
+					if (pad > 0)
+					{
+						try { Console.Write(new string(' ', pad)); } catch { }
+					}
+					continue;
+				}
+			}
+
+			if (colorL.HasValue)
+			{
+				try { Console.ForegroundColor = colorL.Value; } catch { }
 			}
 			WritePadded(toWrite, width);
-			if (color.HasValue)
+			if (colorL.HasValue)
 			{
 				try { Console.ForegroundColor = prev; } catch { }
 			}
