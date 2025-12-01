@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 using System.IO;
 using GeminiLiveConsole; // for AudioCaptureService
 
-public class OpenAIRealtimeAPI2 : IRealtimeApi
+public class OpenAIRealtimeAPI3 : IRealtimeApi
 {
 	private readonly string _apiKey;
 	private const string WS_URL = "wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-12-17";
@@ -17,13 +17,13 @@ public class OpenAIRealtimeAPI2 : IRealtimeApi
 	private CancellationTokenSource _cts;
 	private IAudioCaptureService _audio; // replaced WaveInEvent
 
-	public OpenAIRealtimeAPI2(IAudioCaptureService audioCaptureService, string openAiApiKey)
+	public OpenAIRealtimeAPI3(IAudioCaptureService audioCaptureService, string openAiApiKey)
 	{
 		_audio = audioCaptureService ?? throw new ArgumentNullException(nameof(audioCaptureService));
 		_apiKey = openAiApiKey ?? throw new ArgumentNullException(nameof(openAiApiKey));
 	}
 
-	// Events to decouple from console
+	// Events (mirroring API2)
 	public event Action? OnConnected;
 	public event Action? OnReady;
 	public event Action? OnDisconnected;
@@ -38,8 +38,7 @@ public class OpenAIRealtimeAPI2 : IRealtimeApi
 	public event Action? OnAssistantTextDone;
 	public event Action<string>? OnAssistantAudioTranscriptDelta;
 	public event Action? OnAssistantAudioTranscriptDone;
-	// functionName, answer, consoleCode
-	public event Action<string, string, string>? OnFunctionCallResponse;
+	public event Action<string, string, string>? OnFunctionCallResponse; // functionName, answer, consoleCode
 
 	// Track function calls by call_id
 	private Dictionary<string, StringBuilder> _functionCallBuffers = new Dictionary<string, StringBuilder>();
@@ -64,7 +63,6 @@ public class OpenAIRealtimeAPI2 : IRealtimeApi
 			SetupAudioInput();
 			OnReady?.Invoke();
 
-			// Wait until cancelled
 			try
 			{
 				await Task.Delay(Timeout.Infinite, _cts.Token);
@@ -89,14 +87,14 @@ public class OpenAIRealtimeAPI2 : IRealtimeApi
 			type = "session.update",
 			session = new
 			{
-				modalities = new[] { "text" }, // kept as-is
-				instructions = "You are a C# programming expert assistant.\n\n" +
-							  "MANDATORY BEHAVIOR:\n" +
-							  "When calling report_technical_response, you MUST ALWAYS provide both parameters:\n" +
-							  "1. answer - your explanation\n" +
-							  "2. console_code - complete C# code\n\n" +
-							  "NEVER call the function with only 'answer'. ALWAYS include 'console_code'.\n" +
-							  "If no code is needed, set console_code to: \"// No code example needed\"\n\n" +
+				modalities = new[] { "text" },
+				instructions = "You are a C# programming expert assistant.\\n\\n" +
+							  "MANDATORY BEHAVIOR:\\n" +
+							  "When calling report_technical_response, you MUST ALWAYS provide both parameters:\\n" +
+							  "1. answer - your explanation\\n" +
+							  "2. console_code - complete C# code\\n\\n" +
+							  "NEVER call the function with only 'answer'. ALWAYS include 'console_code'.\\n" +
+							  "If no code is needed, set console_code to: \"// No code example needed\"\\n\\n" +
 							  "The console_code must be a complete, runnable C# program with Main method.",
 				voice = "alloy",
 				input_audio_format = "pcm16",
@@ -396,7 +394,6 @@ public class OpenAIRealtimeAPI2 : IRealtimeApi
 			{
 				case "session.created":
 				case "session.updated":
-					// Session events
 					break;
 
 				case "conversation.item.input_audio_transcription.completed":
@@ -424,7 +421,6 @@ public class OpenAIRealtimeAPI2 : IRealtimeApi
 
 					if (!string.IsNullOrEmpty(callId))
 					{
-						// Create buffer for this call_id if it doesn't exist
 						if (!_functionCallBuffers.ContainsKey(callId))
 						{
 							_functionCallBuffers[callId] = new StringBuilder();
@@ -436,7 +432,6 @@ public class OpenAIRealtimeAPI2 : IRealtimeApi
 							_functionCallBuffers[callId].Append(deltaText);
 						}
 
-						// Store function name if provided
 						if (root.TryGetProperty("name", out var name))
 						{
 							_functionCallNames[callId] = name.GetString();
@@ -557,7 +552,7 @@ public class OpenAIRealtimeAPI2 : IRealtimeApi
 					}
 					break;
 
-				// ignored verbose events
+				// Ignore verbose events
 				case "response.audio.delta":
 				case "input_audio_buffer.committed":
 				case "input_audio_buffer.cleared":
@@ -628,7 +623,6 @@ public class OpenAIRealtimeAPI2 : IRealtimeApi
 		if (string.IsNullOrWhiteSpace(text))
 			return ("", "");
 
-		// Pattern to match code blocks with optional language identifier
 		var codeBlockPattern = @"```(?:csharp|cs|c#)?\s*\n(.*?)\n```";
 		var regex = new System.Text.RegularExpressions.Regex(codeBlockPattern,
 			System.Text.RegularExpressions.RegexOptions.Singleline |
