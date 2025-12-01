@@ -23,6 +23,67 @@ internal static class ConsoleSplitUi
 		AppendOutputInternal(text, color);
 	}
 
+	// New: two-column append (answer left, code right)
+	public static void AppendTwoColumns(string leftText, string rightText, ConsoleColor leftColor, ConsoleColor rightColor)
+	{
+		lock (_lock)
+		{
+			bool atBottom = _scrollOffset == 0;
+			int totalWidth = Math.Max(20, SafeGetWidth());
+			// Reserve 1 char for separator
+			int leftWidth = Math.Max(10, (int)Math.Round(totalWidth * 0.58));
+			int rightWidth = Math.Max(10, totalWidth - leftWidth - 1);
+
+			// Header row
+			var header = BuildTwoColRow("Assistant (function)", "Code", leftWidth, rightWidth);
+			_outputLines.Add(header);
+			_outputColors.Add(ConsoleColor.Cyan);
+
+			// Body rows
+			var leftLines = WrapToWidth(leftText ?? string.Empty, leftWidth);
+			var rightLines = WrapToWidth(rightText ?? string.Empty, rightWidth);
+			int rows = Math.Max(leftLines.Count, rightLines.Count);
+			for (int i = 0; i < rows; i++)
+			{
+				var l = i < leftLines.Count ? leftLines[i] : string.Empty;
+				var r = i < rightLines.Count ? rightLines[i] : string.Empty;
+				_outputLines.Add(BuildTwoColRow(l, r, leftWidth, rightWidth));
+				// Use left color for entire line (renderer supports one color per line)
+				_outputColors.Add(leftColor);
+			}
+
+			TrimOutputCapacity();
+			if (atBottom) _scrollOffset = 0;
+			RenderLocked();
+		}
+	}
+
+	private static string BuildTwoColRow(string left, string right, int leftWidth, int rightWidth)
+	{
+		string l = PadOrSlice(left ?? string.Empty, leftWidth);
+		string r = PadOrSlice(right ?? string.Empty, rightWidth);
+		return $"{l}?{r}";
+	}
+
+	private static List<string> WrapToWidth(string text, int width)
+	{
+		var list = new List<string>();
+		foreach (var line in (text ?? string.Empty).Replace("\r\n", "\n").Split('\n'))
+		{
+			foreach (var chunk in WrapLine(line, width))
+				list.Add(chunk);
+		}
+		if (list.Count == 0) list.Add(string.Empty);
+		return list;
+	}
+
+	private static string PadOrSlice(string text, int width)
+	{
+		if (width <= 0) return string.Empty;
+		if (text.Length >= width) return text.Substring(0, width);
+		return text + new string(' ', width - text.Length);
+	}
+
 	private static void AppendOutputInternal(string text, ConsoleColor? color)
 	{
 		if (text is null) return;

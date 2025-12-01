@@ -4,6 +4,12 @@ using System.Text;
 public sealed class ConsoleRealtimeSink : IRealtimeSink
 {
 	private readonly StringBuilder _assistantBuffer = new StringBuilder();
+	private readonly bool _twoColumnCode;
+
+	public ConsoleRealtimeSink(bool twoColumnCode = false)
+	{
+		_twoColumnCode = twoColumnCode;
+	}
 
 	public void OnConnected() => ConsoleSplitUi.AppendOutputWithColor("Realtime connected", ConsoleColor.White);
 	public void OnReady() => ConsoleSplitUi.AppendOutputWithColor("Realtime ready", ConsoleColor.White);
@@ -36,6 +42,12 @@ public sealed class ConsoleRealtimeSink : IRealtimeSink
 
 	public void OnFunctionCallResponse(string functionName, string answer, string code)
 	{
+		if (_twoColumnCode && (!string.IsNullOrWhiteSpace(answer) || !string.IsNullOrWhiteSpace(code)))
+		{
+			ConsoleSplitUi.AppendTwoColumns(answer?.Trim() ?? string.Empty, code?.Trim() ?? string.Empty, ConsoleColor.Green, ConsoleColor.Yellow);
+			return;
+		}
+
 		if (!string.IsNullOrWhiteSpace(answer))
 		{
 			ConsoleSplitUi.AppendOutputWithColor("Assistant (function):", ConsoleColor.Cyan);

@@ -27,12 +27,14 @@ class Program
 		{
 			var cfg = sp.GetRequiredService<IConfiguration>();
 			var which = cfg["Realtime:Sink"] ?? (Environment.UserInteractive ? "console" : "logger");
+			bool twoCol = false;
+			bool.TryParse(cfg["UI:TwoColumnCode"], out twoCol);
 			return which.ToLowerInvariant() switch
 			{
-				"console" => new ConsoleRealtimeSink(),
+				"console" => new ConsoleRealtimeSink(twoCol),
 				"logger" => new LoggerRealtimeSink(sp.GetRequiredService<ILogger<LoggerRealtimeSink>>()),
 				"signalr" => new SignalRRealtimeSink(),
-				_ => new ConsoleRealtimeSink()
+				_ => new ConsoleRealtimeSink(twoCol)
 			};
 		});
 
