@@ -43,6 +43,7 @@ public class OpenAIRealtimeAPI3 : IRealtimeApi
 	// Track function calls by call_id
 	private Dictionary<string, StringBuilder> _functionCallBuffers = new Dictionary<string, StringBuilder>();
 	private Dictionary<string, string> _functionCallNames = new Dictionary<string, string>();
+	private HashSet<string> _pendingFunctionParse = new HashSet<string>();
 
 	public async Task StartAsync(CancellationToken cancellationToken)
 	{
@@ -408,7 +409,8 @@ public class OpenAIRealtimeAPI3 : IRealtimeApi
 		if (string.IsNullOrWhiteSpace(codeText) && !string.IsNullOrWhiteSpace(answerText))
 		{
 			OnWarning?.Invoke("No console_code provided - attempting to extract from answer.");
-			var (_, extractedCode) = ExtractCodeFromText(answerText);
+			var pair = ExtractCodeFromText(answerText);
+			var extractedCode = pair.code;
 			codeText = extractedCode;
 		}
 
@@ -504,21 +506,23 @@ public class OpenAIRealtimeAPI3 : IRealtimeApi
 							if (!IsCompleteJson(raw))
 							{
 								OnWarning?.Invoke("Incomplete function args – waiting for remaining deltas...");
-
-								var capturedCallId = doneCallId;
-								var capturedFuncName = functionName;
+								_pendingFunctionParse.Add(doneCallId);
 
 								_ = Task.Run(async () =>
 								{
 									try
 									{
-										await Task.Delay(250);
-										if (_functionCallBuffers.TryGetValue(capturedCallId, out var retrySb))
+										await Task.Delay(600);
+										if (_functionCallBuffers.TryGetValue(doneCallId, out var retrySb))
 										{
 											var retry = retrySb.ToString();
 											if (IsCompleteJson(retry))
 											{
-												ParseFunctionArgs(retry, capturedFuncName);
+												ParseFunctionArgs(retry, functionName);
+												SaveRawJsonToFile(functionName, Guid.NewGuid().ToString(), retry);
+												_pendingFunctionParse.Remove(doneCallId);
+												_functionCallBuffers.Remove(doneCallId);
+												_functionCallNames.Remove(doneCallId);
 											}
 											else
 											{
@@ -528,7 +532,11 @@ public class OpenAIRealtimeAPI3 : IRealtimeApi
 													var attempt = retry.Trim();
 													if (!attempt.StartsWith("{")) attempt = "{" + attempt;
 													if (!attempt.EndsWith("}")) attempt += "}";
-													ParseFunctionArgs(attempt, capturedFuncName);
+													ParseFunctionArgs(attempt, functionName);
+													SaveRawJsonToFile(functionName, Guid.NewGuid().ToString(), attempt);
+													_pendingFunctionParse.Remove(doneCallId);
+													_functionCallBuffers.Remove(doneCallId);
+													_functionCallNames.Remove(doneCallId);
 												}
 												catch (Exception ex)
 												{
@@ -540,11 +548,6 @@ public class OpenAIRealtimeAPI3 : IRealtimeApi
 									catch (Exception ex)
 									{
 										OnError?.Invoke(ex);
-									}
-									finally
-									{
-										_functionCallBuffers.Remove(capturedCallId);
-										_functionCallNames.Remove(capturedCallId);
 									}
 								});
 							}
@@ -568,6 +571,7 @@ public class OpenAIRealtimeAPI3 : IRealtimeApi
 						}
 					}
 					break;
+
 				case "response.text.delta":
 					if (root.TryGetProperty("delta", out var textDelta))
 					{
@@ -591,6 +595,45 @@ public class OpenAIRealtimeAPI3 : IRealtimeApi
 					break;
 
 				case "response.done":
+					// Final attempt to parse any pending function call arguments
+					if (_pendingFunctionParse.Count > 0)
+					{
+						var pending = new List<string>(_pendingFunctionParse);
+						foreach (var call in pending)
+						{
+							if (_functionCallBuffers.TryGetValue(call, out var sb))
+							{
+								var txt = sb.ToString();
+								var name = _functionCallNames.ContainsKey(call) ? _functionCallNames[call] : string.Empty;
+								try
+								{
+									if (IsCompleteJson(txt))
+									{
+										ParseFunctionArgs(txt, name);
+										SaveRawJsonToFile(name, Guid.NewGuid().ToString(), txt);
+									}
+									else
+									{
+										var attempt = txt.Trim();
+										if (!attempt.StartsWith("{")) attempt = "{" + attempt;
+										if (!attempt.EndsWith("}")) attempt += "}";
+										ParseFunctionArgs(attempt, name);
+										SaveRawJsonToFile(name, Guid.NewGuid().ToString(), attempt);
+									}
+								}
+								catch (Exception ex)
+								{
+									OnError?.Invoke(ex);
+								}
+								finally
+								{
+									_pendingFunctionParse.Remove(call);
+									_functionCallBuffers.Remove(call);
+									_functionCallNames.Remove(call);
+								}
+							}
+						}
+					}
 					break;
 
 				case "error":

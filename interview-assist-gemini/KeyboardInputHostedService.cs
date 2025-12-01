@@ -22,7 +22,7 @@ public sealed class KeyboardInputHostedService : BackgroundService
 		try { await _readyTcs.Task.WaitAsync(stoppingToken); }
 		catch (OperationCanceledException) { return; }
 
-		_logger.LogInformation("Keyboard active. Type and press Enter to send. Prefix with ! to interrupt. Ctrl+C to exit.");
+		_logger.LogInformation("Keyboard active. Type and press Enter to send. Prefix with ! to interrupt. Ctrl+C to exit. Use PageUp/PageDown or Ctrl+Up/Down to scroll history.");
 
 		var buffer = string.Empty;
 		ConsoleSplitUi.SetInput(buffer);
@@ -38,6 +38,39 @@ public sealed class KeyboardInputHostedService : BackgroundService
 			{
 				_logger.LogWarning(ex, "Console.ReadKey failed");
 				await Task.Delay(100, stoppingToken);
+				continue;
+			}
+
+			// Scroll controls
+			if (key.Key == ConsoleKey.PageUp)
+			{
+				ConsoleSplitUi.ScrollPageUp();
+				continue;
+			}
+			if (key.Key == ConsoleKey.PageDown)
+			{
+				ConsoleSplitUi.ScrollPageDown();
+				continue;
+			}
+			if (key.Modifiers.HasFlag(ConsoleModifiers.Control) && key.Key == ConsoleKey.UpArrow)
+			{
+				ConsoleSplitUi.ScrollUpLines(1);
+				continue;
+			}
+			if (key.Modifiers.HasFlag(ConsoleModifiers.Control) && key.Key == ConsoleKey.DownArrow)
+			{
+				ConsoleSplitUi.ScrollDownLines(1);
+				continue;
+			}
+			if (key.Modifiers.HasFlag(ConsoleModifiers.Control) && key.Key == ConsoleKey.Home)
+			{
+				// Jump to oldest
+				ConsoleSplitUi.ScrollUpLines(int.MaxValue);
+				continue;
+			}
+			if (key.Modifiers.HasFlag(ConsoleModifiers.Control) && key.Key == ConsoleKey.End)
+			{
+				ConsoleSplitUi.ScrollToBottom();
 				continue;
 			}
 

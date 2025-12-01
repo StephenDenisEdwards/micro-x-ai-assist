@@ -6,20 +6,37 @@ internal static class ConsoleSplitUi
 {
 	private static readonly object _lock = new();
 	private static readonly List<string> _outputLines = new();
+	private static readonly List<ConsoleColor?> _outputColors = new();
 	private static string _inputLine = string.Empty;
 	private static int _lastWidth = -1;
 	private static int _lastHeight = -1;
+	private static int _lastTopHeight = 0;
+	private static int _scrollOffset = 0; // 0 = follow bottom; >0 scroll up
 
 	public static void AppendOutput(string text)
+	{
+		AppendOutputInternal(text, null);
+	}
+
+	public static void AppendOutputWithColor(string text, ConsoleColor color)
+	{
+		AppendOutputInternal(text, color);
+	}
+
+	private static void AppendOutputInternal(string text, ConsoleColor? color)
 	{
 		if (text is null) return;
 		lock (_lock)
 		{
-			foreach (var line in text.Replace("\r\n", "\n").Split('\n'))
+			bool atBottom = _scrollOffset == 0;
+			var lines = text.Replace("\r\n", "\n").Split('\n');
+			foreach (var line in lines)
 			{
 				_outputLines.Add(line);
+				_outputColors.Add(color);
 			}
 			TrimOutputCapacity();
+			if (atBottom) _scrollOffset = 0;
 			RenderLocked();
 		}
 	}
@@ -42,12 +59,69 @@ internal static class ConsoleSplitUi
 		}
 	}
 
+	public static void ScrollPageUp()
+	{
+		lock (_lock)
+		{
+			_scrollOffset = Math.Min(MaxScrollOffset(), _scrollOffset + Math.Max(1, _lastTopHeight - 1));
+			RenderLocked();
+		}
+	}
+
+	public static void ScrollPageDown()
+	{
+		lock (_lock)
+		{
+			_scrollOffset = Math.Max(0, _scrollOffset - Math.Max(1, _lastTopHeight - 1));
+			RenderLocked();
+		}
+	}
+
+	public static void ScrollUpLines(int lines)
+	{
+		if (lines <= 0) return;
+		lock (_lock)
+		{
+			_scrollOffset = Math.Min(MaxScrollOffset(), _scrollOffset + lines);
+			RenderLocked();
+		}
+	}
+
+	public static void ScrollDownLines(int lines)
+	{
+		if (lines <= 0) return;
+		lock (_lock)
+		{
+			_scrollOffset = Math.Max(0, _scrollOffset - lines);
+			RenderLocked();
+		}
+	}
+
+	public static void ScrollToBottom()
+	{
+		lock (_lock)
+		{
+			_scrollOffset = 0;
+			RenderLocked();
+		}
+	}
+
+	private static int MaxScrollOffset()
+	{
+		int span = Math.Max(0, _lastTopHeight);
+		int total = _outputLines.Count;
+		return Math.Max(0, total - span);
+	}
+
 	private static void TrimOutputCapacity()
 	{
-		const int maxLines = 2000;
+		const int maxLines = 5000;
 		if (_outputLines.Count > maxLines)
 		{
-			_outputLines.RemoveRange(0, _outputLines.Count - maxLines);
+			int toRemove = _outputLines.Count - maxLines;
+			_outputLines.RemoveRange(0, toRemove);
+			_outputColors.RemoveRange(0, Math.Min(toRemove, _outputColors.Count));
+			_scrollOffset = Math.Max(0, _scrollOffset - toRemove);
 		}
 	}
 
@@ -71,14 +145,16 @@ internal static class ConsoleSplitUi
 		int dividerRow = topHeight;
 
 		bool sizeChanged = width != _lastWidth || height != _lastHeight;
-		_lastWidth = width; _lastHeight = height;
+		_lastWidth = width; _lastHeight = height; _lastTopHeight = topHeight;
+
+		_scrollOffset = Math.Min(_scrollOffset, MaxScrollOffset());
 
 		if (sizeChanged)
 		{
 			try { Console.Clear(); } catch { }
 		}
 
-		DrawOutputRegion(0, 0, width, topHeight, _outputLines);
+		DrawOutputRegion(0, 0, width, topHeight, _scrollOffset);
 		DrawDivider(dividerRow, width);
 		DrawInputRegion(dividerRow + 1, width, bottomHeight, _inputLine);
 
@@ -87,16 +163,29 @@ internal static class ConsoleSplitUi
 		try { Console.CursorVisible = true; } catch { }
 	}
 
-	private static void DrawOutputRegion(int left, int top, int width, int height, List<string> lines)
+	private static void DrawOutputRegion(int left, int top, int width, int height, int scrollOffset)
 	{
-		var span = Math.Max(0, height);
-		var tail = TailLinesForHeight(lines, span);
+		int span = Math.Max(0, height);
+		int total = _outputLines.Count;
+		int start = Math.Max(0, total - span - scrollOffset);
+		if (start > Math.Max(0, total - span)) start = Math.Max(0, total - span);
 
+		var prev = Console.ForegroundColor;
 		for (int i = 0; i < height; i++)
 		{
 			SafeSetCursorPosition(left, top + i);
-			string toWrite = (i < tail.Count) ? tail[i] : string.Empty;
+			int idx = start + i;
+			string toWrite = (idx >= 0 && idx < total) ? _outputLines[idx] : string.Empty;
+			ConsoleColor? color = (idx >= 0 && idx < _outputColors.Count) ? _outputColors[idx] : null;
+			if (color.HasValue)
+			{
+				try { Console.ForegroundColor = color.Value; } catch { }
+			}
 			WritePadded(toWrite, width);
+			if (color.HasValue)
+			{
+				try { Console.ForegroundColor = prev; } catch { }
+			}
 		}
 	}
 
@@ -141,12 +230,6 @@ internal static class ConsoleSplitUi
 		{
 			try { Console.Write(new string(' ', pad)); } catch { }
 		}
-	}
-
-	private static List<string> TailLinesForHeight(List<string> source, int height)
-	{
-		int count = Math.Min(height, source.Count);
-		return source.Skip(Math.Max(0, source.Count - count)).ToList();
 	}
 
 	private static void SafeSetCursorPosition(int left, int top)

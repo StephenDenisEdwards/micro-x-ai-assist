@@ -5,18 +5,18 @@ public sealed class ConsoleRealtimeSink : IRealtimeSink
 {
 	private readonly StringBuilder _assistantBuffer = new StringBuilder();
 
-	public void OnConnected() => ConsoleSplitUi.AppendOutput("Realtime connected");
-	public void OnReady() => ConsoleSplitUi.AppendOutput("Realtime ready");
-	public void OnDisconnected() => ConsoleSplitUi.AppendOutput("Realtime disconnected");
+	public void OnConnected() => ConsoleSplitUi.AppendOutputWithColor("Realtime connected", ConsoleColor.White);
+	public void OnReady() => ConsoleSplitUi.AppendOutputWithColor("Realtime ready", ConsoleColor.White);
+	public void OnDisconnected() => ConsoleSplitUi.AppendOutputWithColor("Realtime disconnected", ConsoleColor.White);
 
-	public void OnInfo(string message) => ConsoleSplitUi.AppendOutput(message);
-	public void OnWarning(string message) => ConsoleSplitUi.AppendOutput($"[warn] {message}");
-	public void OnDebug(string message) => ConsoleSplitUi.AppendOutput($"[debug] {message}");
-	public void OnError(Exception ex) => ConsoleSplitUi.AppendOutput($"[error] {ex}");
+	public void OnInfo(string message) => ConsoleSplitUi.AppendOutputWithColor(message, ConsoleColor.White);
+	public void OnWarning(string message) => ConsoleSplitUi.AppendOutputWithColor($"[warn] {message}", ConsoleColor.Yellow);
+	public void OnDebug(string message) => ConsoleSplitUi.AppendOutputWithColor($"[debug] {message}", ConsoleColor.DarkGray);
+	public void OnError(Exception ex) => ConsoleSplitUi.AppendOutputWithColor($"[error] {ex}", ConsoleColor.Red);
 
 	public void OnUserTranscript(string text)
 	{
-		ConsoleSplitUi.AppendOutput($"You: {text}");
+		ConsoleSplitUi.AppendOutputWithColor($"You: {text}", ConsoleColor.DarkGray);
 	}
 
 	public void OnAssistantTextDelta(string delta)
@@ -30,21 +30,21 @@ public sealed class ConsoleRealtimeSink : IRealtimeSink
 		var text = _assistantBuffer.ToString();
 		_assistantBuffer.Clear();
 
-		ConsoleSplitUi.AppendOutput("Assistant:");
-		ConsoleSplitUi.AppendOutput(text);
+		ConsoleSplitUi.AppendOutputWithColor("Assistant:", ConsoleColor.Cyan);
+		ConsoleSplitUi.AppendOutputWithColor(text, ConsoleColor.Green);
 	}
 
 	public void OnFunctionCallResponse(string functionName, string answer, string code)
 	{
 		if (!string.IsNullOrWhiteSpace(answer))
 		{
-			ConsoleSplitUi.AppendOutput("Assistant (function):");
-			ConsoleSplitUi.AppendOutput(answer.Trim());
+			ConsoleSplitUi.AppendOutputWithColor("Assistant (function):", ConsoleColor.Cyan);
+			ConsoleSplitUi.AppendOutputWithColor(answer.Trim(), ConsoleColor.Green);
 		}
 		if (!string.IsNullOrWhiteSpace(code))
 		{
-			ConsoleSplitUi.AppendOutput("Code:");
-			ConsoleSplitUi.AppendOutput(code.Trim());
+			ConsoleSplitUi.AppendOutputWithColor("Code:", ConsoleColor.Cyan);
+			ConsoleSplitUi.AppendOutputWithColor(code.Trim(), ConsoleColor.Yellow);
 		}
 	}
 }
