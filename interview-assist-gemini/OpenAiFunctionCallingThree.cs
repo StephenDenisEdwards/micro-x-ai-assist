@@ -178,13 +178,18 @@ public class OpenAIRealtimeAPI3 : IRealtimeApi
 			await SendMessage(new { type = "response.cancel" });
 		}
 
+		// Updated payload to match API requirement: conversation.item.create expects 'item'
 		var itemCreate = new
 		{
 			type = "conversation.item.create",
-			role = "user",
-			content = new object[]
+			item = new
 			{
-				new { type = "input_text", text = text }
+				type = "message",
+				role = "user",
+				content = new object[]
+				{
+					new { type = "input_text", text = text }
+				}
 			}
 		};
 
@@ -517,8 +522,18 @@ public class OpenAIRealtimeAPI3 : IRealtimeApi
 											}
 											else
 											{
-												OnWarning?.Invoke("Still incomplete after retry – skipping parse.");
-												throw new Exception("JSON Incomplete or malformed.");
+												OnWarning?.Invoke("Still incomplete after retry – attempting repair parse.");
+												try
+												{
+													var attempt = retry.Trim();
+													if (!attempt.StartsWith("{")) attempt = "{" + attempt;
+													if (!attempt.EndsWith("}")) attempt += "}";
+													ParseFunctionArgs(attempt, capturedFuncName);
+												}
+												catch (Exception ex)
+												{
+													OnError?.Invoke(ex);
+												}
 											}
 										}
 									}

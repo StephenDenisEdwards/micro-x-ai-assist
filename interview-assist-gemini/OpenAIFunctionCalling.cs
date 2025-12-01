@@ -179,8 +179,12 @@ public class OpenAIRealtimeAPI : IRealtimeApi
 		var itemCreate = new
 		{
 			type = "conversation.item.create",
-			role = "user",
-			content = new object[] { new { type = "input_text", text = text } }
+			item = new
+			{
+				type = "message",
+				role = "user",
+				content = new object[] { new { type = "input_text", text = text } }
+			}
 		};
 		await SendMessage(itemCreate);
 		OnUserTranscript?.Invoke(text);

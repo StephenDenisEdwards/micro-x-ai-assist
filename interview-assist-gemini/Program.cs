@@ -53,6 +53,7 @@ class Program
 			};
 		});
 		builder.Services.AddHostedService<RealtimeHostedService>();
+		builder.Services.AddHostedService<KeyboardInputHostedService>();
 
 		var app = builder.Build();
 		var logger = app.Services.GetRequiredService<ILogger<Program>>();

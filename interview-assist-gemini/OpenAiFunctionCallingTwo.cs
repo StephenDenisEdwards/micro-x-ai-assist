@@ -180,8 +180,12 @@ public class OpenAIRealtimeAPI2 : IRealtimeApi
 		var itemCreate = new
 		{
 			type = "conversation.item.create",
-			role = "user",
-			content = new object[] { new { type = "input_text", text = text } }
+			item = new
+			{
+				type = "message",
+				role = "user",
+				content = new object[] { new { type = "input_text", text = text } }
+			}
 		};
 		await SendMessage(itemCreate);
 		OnUserTranscript?.Invoke(text);
@@ -513,8 +517,23 @@ public class OpenAIRealtimeAPI2 : IRealtimeApi
 											}
 											else
 											{
-												OnWarning?.Invoke("Still incomplete after retry – skipping parse.");
-												throw new Exception("JSON Incomplete or malformed.");
+												OnWarning?.Invoke("Still incomplete after retry – attempting repair parse.");
+												try
+												{
+													var attempt = retry.Trim();
+													if (!attempt.StartsWith("{")) attempt = "{" + attempt;
+													if (!attempt.EndsWith("}")) attempt = attempt + "}";
+													ParseFunctionArgs(attempt, capturedFuncName);
+												}
+												catch (Exception ex)
+												{
+													OnError?.Invoke(ex);
+												}
+												finally
+												{
+													_functionCallBuffers.Remove(capturedCallId);
+													_functionCallNames.Remove(capturedCallId);
+												}
 											}
 										}
 									}
