@@ -29,15 +29,33 @@ internal static class ConsoleSplitUi
 		lock (_lock)
 		{
 			bool atBottom = _scrollOffset == 0;
+			int width = Math.Max(20, SafeGetWidth());
 			var lines = text.Replace("\r\n", "\n").Split('\n');
 			foreach (var line in lines)
 			{
-				_outputLines.Add(line);
-				_outputColors.Add(color);
+				foreach (var chunk in WrapLine(line, width))
+				{
+					_outputLines.Add(chunk);
+					_outputColors.Add(color);
+				}
 			}
 			TrimOutputCapacity();
 			if (atBottom) _scrollOffset = 0;
 			RenderLocked();
+		}
+	}
+
+	private static IEnumerable<string> WrapLine(string line, int width)
+	{
+		if (string.IsNullOrEmpty(line)) { yield return string.Empty; yield break; }
+		if (width <= 1) { yield return line; yield break; }
+		int idx = 0;
+		int max = Math.Max(1, width);
+		while (idx < line.Length)
+		{
+			int len = Math.Min(max, line.Length - idx);
+			yield return line.Substring(idx, len);
+			idx += len;
 		}
 	}
 
@@ -77,7 +95,8 @@ internal static class ConsoleSplitUi
 		}
 	}
 
-	public static void ScrollUpLines(int lines)
+	public static void ScrollUpLines(int lines
+		)
 	{
 		if (lines <= 0) return;
 		lock (_lock)

@@ -20,7 +20,7 @@ class Program
 
 		// Services
 		builder.Services.AddSingleton<IAudioCaptureService>(_ => 
-			new AudioCaptureService(24000, AudioInputSource.Microphone));
+			new AudioCaptureService(24000, AudioInputSource.Loopback));
 
 		// Realtime sink selection
 		builder.Services.AddSingleton<IRealtimeSink>(sp =>
