@@ -19,8 +19,25 @@ class Program
 		builder.Logging.AddConsole();
 
 		// Services
-		builder.Services.AddSingleton<IAudioCaptureService>(_ => 
-			new AudioCaptureService(24000, AudioInputSource.Loopback));
+		builder.Services.AddSingleton<IAudioCaptureService>(sp =>
+		{
+			var cfg = sp.GetRequiredService<IConfiguration>();
+
+			// Source: microphone | loopback (default microphone)
+			var sourceStr = cfg["Audio:Source"];
+			var initialSource = Enum.TryParse<AudioInputSource>(sourceStr, ignoreCase: true, out var parsedSource)
+				? parsedSource
+				: AudioInputSource.Microphone;
+
+			// Optional: allow overriding sample rate (default 24000 to match current behavior)
+			var sampleRate = 24000;
+			if (int.TryParse(cfg["Audio:SampleRate"], out var cfgRate) && cfgRate > 0)
+			{
+				sampleRate = cfgRate;
+			}
+
+			return new AudioCaptureService(sampleRate, initialSource);
+		});
 
 		// Realtime sink selection
 		builder.Services.AddSingleton<IRealtimeSink>(sp =>
