@@ -16,7 +16,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "documentation", "documentat
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GeminiLiveConsole", "GeminiLiveConsole\GeminiLiveConsole.csproj", "{61A92377-CE1B-2CAB-C871-39BD0B230521}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "interview-assist", "interview-assist-gemini\interview-assist.csproj", "{7D72F70E-3612-460B-0210-1ECAE9F5C642}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "interview-assist-gemini", "interview-assist-gemini\interview-assist-gemini.csproj", "{7D72F70E-3612-460B-0210-1ECAE9F5C642}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
