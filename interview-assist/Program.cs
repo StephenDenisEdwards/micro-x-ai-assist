@@ -59,7 +59,7 @@ class Program
 		builder.Services.AddSingleton<IRealtimeApi>(sp =>
 		{
 			var cfg = sp.GetRequiredService<IConfiguration>();
-			var apiKey = cfg["OpenAI:ApiKey"] ?? Environment.GetEnvironmentVariable("OPENAI_API_KEY");
+			var apiKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY") ?? cfg["OpenAI:ApiKey"];
 			if (string.IsNullOrWhiteSpace(apiKey))
 				throw new InvalidOperationException("OPENAI_API_KEY missing. Set env var or OpenAI:ApiKey in user secrets.");
 			var which = cfg["Realtime:Implementation"] ?? "api2"; // api, api2, api3
