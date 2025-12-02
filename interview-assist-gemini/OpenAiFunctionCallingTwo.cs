@@ -6,7 +6,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using System.IO;
-using GeminiLiveConsole; // for AudioCaptureService
+using InterviewLiveConsole; // for AudioCaptureService
 
 public class OpenAIRealtimeAPI2 : IRealtimeApi
 {

@@ -1,6 +1,6 @@
 using NAudio.Wave;
 
-namespace GeminiLiveConsole;
+namespace InterviewLiveConsole;
 
 public sealed class AudioCaptureService : IDisposable
 {

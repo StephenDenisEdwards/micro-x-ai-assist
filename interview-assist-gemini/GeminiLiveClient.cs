@@ -2,9 +2,9 @@
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
-using GeminiLiveConsole.Models;
+using InterviewLiveConsole.Models;
 
-namespace GeminiLiveConsole;
+namespace InterviewLiveConsole;
 
 public sealed class GeminiLiveClient : IAsyncDisposable
 {

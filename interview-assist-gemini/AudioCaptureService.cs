@@ -1,7 +1,7 @@
 using NAudio.Wave;
 using NAudio.CoreAudioApi;
 
-namespace GeminiLiveConsole;
+namespace InterviewLiveConsole;
 
 public sealed class AudioCaptureService : IAudioCaptureService
 {

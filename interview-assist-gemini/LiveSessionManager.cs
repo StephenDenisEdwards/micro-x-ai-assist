@@ -1,10 +1,10 @@
-﻿using GeminiLiveConsole.Models;
-using System;
+﻿using System;
 using System.Linq;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using InterviewLiveConsole.Models;
 
-namespace GeminiLiveConsole;
+namespace InterviewLiveConsole;
 
 public sealed class LiveSessionManager
 {

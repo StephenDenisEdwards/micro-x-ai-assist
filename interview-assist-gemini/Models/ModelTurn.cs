@@ -1,4 +1,4 @@
-namespace GeminiLiveConsole.Models;
+namespace InterviewLiveConsole.Models;
 // --- DTOs for Gemini Live responses ---
 public sealed class ModelTurn
 {

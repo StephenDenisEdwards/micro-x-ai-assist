@@ -1,7 +1,7 @@
-using GeminiLiveConsole.Models;
 using System;
+using InterviewLiveConsole.Models;
 
-namespace GeminiLiveConsole;
+namespace InterviewLiveConsole;
 
 public class TurnCompletedEventArgs : EventArgs
 {

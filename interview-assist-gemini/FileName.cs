@@ -5,7 +5,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace GeminiLiveConsole;
+namespace InterviewLiveConsole;
 
 public class GeminiFunctionCallingExample
 {

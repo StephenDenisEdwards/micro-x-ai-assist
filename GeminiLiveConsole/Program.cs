@@ -3,7 +3,7 @@ using NAudio.Wave;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
-using GeminiLiveConsole.Models;
+using InterviewLiveConsole.Models;
 
 class Program
 {

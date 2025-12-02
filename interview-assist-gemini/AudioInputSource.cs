@@ -1,4 +1,4 @@
-namespace GeminiLiveConsole;
+namespace InterviewLiveConsole;
 
 public enum AudioInputSource
 {

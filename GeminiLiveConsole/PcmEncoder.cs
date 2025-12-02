@@ -1,6 +1,6 @@
 using System;
 
-namespace GeminiLiveConsole;
+namespace InterviewLiveConsole;
 
 public static class PcmEncoder
 {
